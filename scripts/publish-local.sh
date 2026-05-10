@@ -256,27 +256,29 @@ if [ "$DRY_RUN" = false ]; then
 
     # Step 8: Publishing
     print_step "Publishing packages to NPM"
-    
+
+    REPO_ROOT="$(pwd)"
+
     echo "Publishing @uepm/core@$core_version"
-    cd packages/core && npm publish --access public && cd ../..
+    npm publish --access public --workspace=packages/core
     print_success "Published @uepm/core@$core_version"
-    
+
     echo "Publishing @uepm/init@$init_version"
-    cd packages/init && npm publish --access public && cd ../..
+    npm publish --access public --workspace=packages/init
     print_success "Published @uepm/init@$init_version"
-    
+
     echo "Publishing @uepm/postinstall@$postinstall_version"
-    cd packages/postinstall && npm publish --access public && cd ../..
+    npm publish --access public --workspace=packages/postinstall
     print_success "Published @uepm/postinstall@$postinstall_version"
-    
+
     echo "Publishing @uepm/example-plugin@$example_version"
-    cd samples/plugins/example-plugin && npm publish --access public && cd ../../..
+    npm publish --access public --workspace=samples/plugins/example-plugin
     print_success "Published @uepm/example-plugin@$example_version"
-    
+
     echo "Publishing @uepm/dependency-plugin@$dependency_version"
-    cd samples/plugins/dependency-plugin && npm publish --access public && cd ../../..
+    npm publish --access public --workspace=samples/plugins/dependency-plugin
     print_success "Published @uepm/dependency-plugin@$dependency_version"
-    
+
     echo ""
     print_step "Publication Summary"
     echo "@uepm/core: $core_version"
@@ -285,16 +287,35 @@ if [ "$DRY_RUN" = false ]; then
     echo "@uepm/example-plugin: $example_version"
     echo "@uepm/dependency-plugin: $dependency_version"
     echo ""
-    
+
     print_success "All packages published successfully!"
+    echo ""
+
+    # Step 9: Git tag and GitHub release
+    print_step "Creating git tag and GitHub release"
+
+    TAG="v$new_workspace_version"
+
+    git tag "$TAG"
+    git push origin "$TAG"
+    print_success "Pushed tag $TAG"
+
+    gh release create "$TAG" \
+        --title "UEPM $TAG" \
+        --generate-notes \
+        --latest
+    print_success "GitHub release $TAG created"
+
     echo ""
     echo "You can now test the published packages:"
     echo "  npx @uepm/init@$init_version"
     echo "  npm install @uepm/example-plugin@$example_version"
-    
+
 else
     echo ""
     print_warning "DRY RUN COMPLETE - No packages were actually published"
+    echo ""
+    echo "Would also create git tag v$new_workspace_version and GitHub release."
     echo ""
     echo "To publish for real, run:"
     echo "  $0 --version-type $VERSION_TYPE"

@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 | Script | Purpose |
 |---|---|
-| `publish-local.sh` | Full publish workflow: install → build → test → version bump → npm publish |
+| `publish-local.sh` | Full publish workflow: install → build → test → version bump → npm publish → git tag → GitHub release |
 | `test-publish.sh` | Dry-run of the publish workflow — no version changes, no actual publishing |
 | `test-published-packages.sh` | Post-publish smoke test: installs the just-published packages from the live npm registry and verifies the CLI (`npx @uepm/init --help`) and postinstall hook work end-to-end |
 
