@@ -45,8 +45,9 @@ export async function setupPlugins(projectDir: string): Promise<void> {
             // Ignore if doesn't exist
           }
           
-          // Create symlink in node_modules
-          await fs.symlink(absolutePath, nodeModulesLinkPath, 'dir');
+          // Create symlink in node_modules (relative path)
+          const relativePathForNodeModules = path.relative(path.dirname(nodeModulesLinkPath), absolutePath);
+          await fs.symlink(relativePathForNodeModules, nodeModulesLinkPath, 'dir');
           console.log(`✓ Linked ${packageName} -> ${filePath} (node_modules)`);
         } catch (error) {
           console.warn(`⚠ Failed to link ${packageName} in node_modules: ${error}`);
@@ -92,8 +93,9 @@ export async function setupPlugins(projectDir: string): Promise<void> {
             // Ignore if doesn't exist
           }
           
-          // Create symlink in UEPMPlugins
-          await fs.symlink(sourcePath, uepmLinkPath, 'dir');
+          // Create symlink in UEPMPlugins (relative path)
+          const relativeSourcePath = path.relative(path.dirname(uepmLinkPath), sourcePath);
+          await fs.symlink(relativeSourcePath, uepmLinkPath, 'dir');
           console.log(`✓ Linked ${packageName} -> UEPMPlugins/${pluginName}`);
           pluginsLinked++;
         } catch (error) {
