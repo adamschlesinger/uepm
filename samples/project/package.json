@@ -11,6 +11,6 @@
     "@uepm/dependency-plugin": "^1.0.5"
   },
   "devDependencies": {
-    "@uepm/postinstall": "^1.0.5"
+    "@uepm/postinstall": "^1.1.0"
   }
 }

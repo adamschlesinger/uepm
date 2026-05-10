@@ -1,6 +1,6 @@
 {
   "name": "@uepm/core",
-  "version": "1.0.5",
+  "version": "1.1.0",
   "description": "Core utilities for UEPM - shared code for UProject and package.json management",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

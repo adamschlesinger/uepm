@@ -1,6 +1,6 @@
 {
   "name": "@uepm/dependency-plugin",
-  "version": "1.0.5",
+  "version": "1.1.0",
   "description": "Plugin demonstrating dependencies on other NPM plugins",
   "main": "DependencyPlugin.uplugin",
   "scripts": {
@@ -12,7 +12,7 @@
     "pluginName": "DependencyPlugin"
   },
   "dependencies": {
-    "@uepm/example-plugin": "^1.0.5"
+    "@uepm/example-plugin": "^1.1.0"
   },
   "files": [
     "DependencyPlugin.uplugin",

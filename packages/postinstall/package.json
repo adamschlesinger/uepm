@@ -1,6 +1,6 @@
 {
   "name": "@uepm/postinstall",
-  "version": "1.0.5",
+  "version": "1.1.0",
   "description": "Postinstall hooks for UEPM - plugin setup and validation",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -37,7 +37,7 @@
     "fast-check": "^4.5.3"
   },
   "dependencies": {
-    "@uepm/core": "^1.0.5",
+    "@uepm/core": "^1.1.0",
     "semver": "^7.6.3"
   }
 }
