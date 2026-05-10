@@ -8,5 +8,4 @@ export * from './plugin-package-json-generator';
 export * from './plugin-initialization-strategy';
 export * from './errors';
 export * from './validation';
-export * from './test-generators';
 export * from './context-detector';
