@@ -254,9 +254,7 @@ export async function validatePlugins(
       }
     }
   } catch (error) {
-    if (error instanceof Error) {
-      result.warnings.push(`Error during validation: ${error.message}`);
-    }
+    result.warnings.push(`Error during validation: ${error instanceof Error ? error.message : String(error)}`);
   }
 
   return result;

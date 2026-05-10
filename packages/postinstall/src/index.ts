@@ -32,8 +32,11 @@ export async function runPostinstall(projectDir: string = process.cwd()): Promis
     
     if (result.incompatible.length > 0) {
       console.log(`⚠️  ${result.incompatible.length} potentially incompatible plugin(s):`);
+    }
+
+    if (result.warnings.length > 0) {
       for (const warning of result.warnings) {
-        console.log(`   ${warning}`);
+        console.warn(`   ${warning}`);
       }
     }
     
