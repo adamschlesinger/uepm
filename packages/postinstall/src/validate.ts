@@ -156,10 +156,20 @@ export function validatePlugin(
     };
   }
 
-  // Clean the engine version (remove GUID format if present)
+  // Clean the engine version (returns null for GUID/launcher format)
   const cleanEngineVersion = cleanVersionString(engineVersion);
 
-  // If we can't parse the engine version, assume compatible but warn
+  // GUID engine associations come from launcher-installed engines where we
+  // cannot determine the numeric version — skip validation rather than
+  // producing false compatibility results
+  if (cleanEngineVersion === null) {
+    return {
+      compatible: true,
+      reason: `Engine version is in launcher GUID format (${engineVersion}), skipping compatibility check`,
+    };
+  }
+
+  // If we can't parse the engine version, skip validation and warn
   if (!semver.valid(cleanEngineVersion) && !semver.coerce(cleanEngineVersion)) {
     return {
       compatible: true,
@@ -192,16 +202,14 @@ export function validatePlugin(
 }
 
 /**
- * Clean version string to make it semver-compatible
- * @param version - Version string (may be GUID or version number)
- * @returns Cleaned version string
+ * Clean version string to make it semver-compatible.
+ * Returns null when the version is in GUID/launcher format and cannot be
+ * parsed — callers should treat null as "version unknown, skip validation".
  */
-function cleanVersionString(version: string): string {
-  // If it's a GUID (starts with { or is a UUID), extract version if possible
+function cleanVersionString(version: string): string | null {
+  // Launcher-installed engines use a GUID as the engine association
   if (version.startsWith('{') || version.match(/^[0-9a-f-]{36}$/i)) {
-    // For GUID format, we can't determine the version
-    // Return a placeholder that will be handled by the caller
-    return '0.0.0';
+    return null;
   }
 
   // Remove any non-semver characters but keep dots and numbers

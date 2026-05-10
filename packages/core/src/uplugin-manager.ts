@@ -126,10 +126,10 @@ export async function extractPluginMetadata(filePath: string): Promise<PluginMet
     version = plugin.VersionName;
   } else if (plugin.Version !== undefined) {
     version = plugin.Version.toString();
-    // If it's just a number, format as semver
-    if (/^\d+$/.test(version)) {
-      version = `${version}.0.0`;
-    }
+    // Pad to full semver: "2" → "2.0.0", "2.5" → "2.5.0"
+    const parts = version.split('.');
+    while (parts.length < 3) parts.push('0');
+    version = parts.join('.');
   }
   
   const metadata: PluginMetadata = {
