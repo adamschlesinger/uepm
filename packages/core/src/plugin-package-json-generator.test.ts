@@ -194,7 +194,7 @@ describe('Plugin Package.json Generator - Property-Based Tests', () => {
           if (metadata.engineVersion) {
             expect(packageJson.unreal?.engineVersion).toBe(metadata.engineVersion);
           } else {
-            expect(packageJson.unreal?.engineVersion).toBe('^5.0.0');
+            expect(packageJson.unreal?.engineVersion).toBe('>=5.0.0 <6.0.0');
           }
         }
       ),
@@ -351,7 +351,7 @@ describe('Plugin Package.json Generator - Property-Based Tests', () => {
           } else if (metadata.engineVersion) {
             expect(packageJson.unreal?.engineVersion).toBe(metadata.engineVersion);
           } else {
-            expect(packageJson.unreal?.engineVersion).toBe('^5.0.0');
+            expect(packageJson.unreal?.engineVersion).toBe('>=5.0.0 <6.0.0');
           }
         }
       ),

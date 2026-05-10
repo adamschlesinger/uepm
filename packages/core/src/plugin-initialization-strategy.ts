@@ -220,13 +220,12 @@ export class PluginInitializationStrategy implements InitializationStrategy {
     
     // Provide next steps guidance
     message += `Next steps:\n`;
-    message += `1. Review the generated package.json configuration\n`;
-    message += `2. Check the .gitignore file for appropriate exclusions\n`;
-    message += `3. Add any additional metadata (description, author, etc.)\n`;
+    message += `1. Set your package name and scope in package.json (e.g. "@your-org/${pluginName.toLowerCase()}")\n`;
+    message += `2. Review the engine version compatibility range in the "unreal" section\n`;
+    message += `3. Check the .gitignore file for appropriate exclusions\n`;
     message += `4. Run 'npm test' to validate your plugin structure\n`;
     message += `5. Use 'npm run build' to build your plugin (if it has source modules)\n`;
     message += `6. Publish to NPM with 'npm publish' when ready\n`;
-    message += `\nFor more information, see the UEPM plugin development guide.`;
     
     return message;
   }

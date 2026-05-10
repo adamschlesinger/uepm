@@ -168,9 +168,9 @@ export function generatePluginPackageJson(
   const pluginDirectory = path.dirname(upluginPath);
   
   // Determine engine version compatibility
-  const engineVersion = options.engineVersion || 
-                       metadata.engineVersion || 
-                       '^5.0.0'; // Default to UE5+ compatibility
+  const engineVersion = options.engineVersion ||
+                       metadata.engineVersion ||
+                       '>=5.0.0 <6.0.0'; // Default to UE5 compatibility
   
   // Generate package name from plugin name (convert to kebab-case for NPM)
   const packageName = metadata.name
@@ -244,8 +244,8 @@ export function generatePluginPackageJson(
   
   // Add development dependencies for testing
   packageJson.devDependencies = {
-    'vitest': '^1.0.0',
-    '@types/node': '^20.0.0'
+    'vitest': '^3.0.0',
+    '@types/node': '^22.0.0'
   };
   
   // Add build scripts (placeholder - will be enhanced by generateBuildScripts)
