@@ -124,8 +124,14 @@ async function extractPluginInfo(
         path: pluginPath,
       };
     }
-  } catch {
-    // Not a valid plugin or package.json doesn't exist
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code === 'ENOENT') {
+      // No package.json — not a plugin directory
+      return null;
+    }
+    // Unexpected error (malformed JSON, permission denied, etc.) — warn so the user knows
+    console.warn(`⚠ Could not read package at ${pluginPath}: ${err}`);
     return null;
   }
 
