@@ -20,6 +20,7 @@ export async function detectContext(directory: string): Promise<ContextDetection
     // Handle no Unreal files found
     if (uprojectFiles.length === 0 && upluginFiles.length === 0) {
       return {
+        success: false,
         error: `No Unreal Engine project (.uproject) or plugin (.uplugin) files found in ${directory}. Please run this command in a directory containing an Unreal Engine project or plugin.`
       };
     }
@@ -27,7 +28,7 @@ export async function detectContext(directory: string): Promise<ContextDetection
     // Handle both project and plugin files (prioritize project with warning)
     if (uprojectFiles.length > 0 && upluginFiles.length > 0) {
       const warnings = [`Both .uproject and .uplugin files found. Prioritizing project initialization. Plugin file ${upluginFiles[0]} will be ignored.`];
-      
+
       // Handle multiple project files
       let projectFile = uprojectFiles[0];
       if (uprojectFiles.length > 1) {
@@ -37,6 +38,7 @@ export async function detectContext(directory: string): Promise<ContextDetection
       }
 
       return {
+        success: true,
         context: {
           type: 'project',
           primaryFile: path.join(directory, projectFile),
@@ -50,7 +52,7 @@ export async function detectContext(directory: string): Promise<ContextDetection
     if (uprojectFiles.length > 0) {
       let projectFile = uprojectFiles[0];
       const warnings: string[] = [];
-      
+
       if (uprojectFiles.length > 1) {
         uprojectFiles.sort();
         projectFile = uprojectFiles[0];
@@ -58,12 +60,13 @@ export async function detectContext(directory: string): Promise<ContextDetection
       }
 
       return {
+        success: true,
         context: {
           type: 'project',
           primaryFile: path.join(directory, projectFile),
           directory
         },
-        warnings: warnings.length > 0 ? warnings : undefined
+        ...(warnings.length > 0 ? { warnings } : {})
       };
     }
 
@@ -71,8 +74,9 @@ export async function detectContext(directory: string): Promise<ContextDetection
     if (upluginFiles.length === 1) {
       const pluginFile = upluginFiles[0];
       const pluginName = path.basename(pluginFile, '.uplugin');
-      
+
       return {
+        success: true,
         context: {
           type: 'plugin',
           primaryFile: path.join(directory, pluginFile),
@@ -85,12 +89,14 @@ export async function detectContext(directory: string): Promise<ContextDetection
     // Handle multiple plugin files (only when no project files exist)
     if (upluginFiles.length > 1) {
       return {
+        success: false,
         error: `Multiple .uplugin files found in ${directory}: ${upluginFiles.join(', ')}. Please specify which plugin to initialize or run the command in a directory with only one plugin file.`
       };
     }
 
     // This should never be reached, but handle it gracefully
     return {
+      success: false,
       error: `Unexpected error during context detection in ${directory}`
     };
 

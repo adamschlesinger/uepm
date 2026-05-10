@@ -94,8 +94,6 @@ export interface InitContext {
   pluginName?: string; // Only for plugin context
 }
 
-export interface ContextDetectionResult {
-  context?: InitContext;
-  error?: string;
-  warnings?: string[];
-}
+export type ContextDetectionResult =
+  | { success: true;  context: InitContext; warnings?: string[] }
+  | { success: false; error: string;        warnings?: string[] };

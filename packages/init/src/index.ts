@@ -44,18 +44,11 @@ export async function init(options: InitOptions = {}): Promise<InitResult> {
   try {
     // Step 1: Detect context (project vs plugin)
     const contextResult = await detectContext(projectDir);
-    
-    if (contextResult.error) {
+
+    if (!contextResult.success) {
       return {
         success: false,
         message: contextResult.error,
-      };
-    }
-
-    if (!contextResult.context) {
-      return {
-        success: false,
-        message: 'Unable to determine initialization context',
       };
     }
 

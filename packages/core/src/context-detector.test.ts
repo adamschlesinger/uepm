@@ -26,11 +26,11 @@ describe('Context Detector', () => {
 
       const result = await detectContext(tempDir);
 
-      expect(result.context).toBeDefined();
-      expect(result.context!.type).toBe('project');
-      expect(result.context!.primaryFile).toBe(uprojectPath);
-      expect(result.context!.directory).toBe(tempDir);
-      expect(result.error).toBeUndefined();
+      expect(result.success).toBe(true);
+      if (!result.success) return;
+      expect(result.context.type).toBe('project');
+      expect(result.context.primaryFile).toBe(uprojectPath);
+      expect(result.context.directory).toBe(tempDir);
     });
 
     it('should detect plugin context with single .uplugin file', async () => {
@@ -39,12 +39,12 @@ describe('Context Detector', () => {
 
       const result = await detectContext(tempDir);
 
-      expect(result.context).toBeDefined();
-      expect(result.context!.type).toBe('plugin');
-      expect(result.context!.primaryFile).toBe(upluginPath);
-      expect(result.context!.directory).toBe(tempDir);
-      expect(result.context!.pluginName).toBe('TestPlugin');
-      expect(result.error).toBeUndefined();
+      expect(result.success).toBe(true);
+      if (!result.success) return;
+      expect(result.context.type).toBe('plugin');
+      expect(result.context.primaryFile).toBe(upluginPath);
+      expect(result.context.directory).toBe(tempDir);
+      expect(result.context.pluginName).toBe('TestPlugin');
     });
 
     it('should prioritize project when both .uproject and .uplugin exist', async () => {
@@ -55,9 +55,10 @@ describe('Context Detector', () => {
 
       const result = await detectContext(tempDir);
 
-      expect(result.context).toBeDefined();
-      expect(result.context!.type).toBe('project');
-      expect(result.context!.primaryFile).toBe(uprojectPath);
+      expect(result.success).toBe(true);
+      if (!result.success) return;
+      expect(result.context.type).toBe('project');
+      expect(result.context.primaryFile).toBe(uprojectPath);
       expect(result.warnings).toBeDefined();
       expect(result.warnings![0]).toContain('Both .uproject and .uplugin files found');
     });
@@ -67,8 +68,8 @@ describe('Context Detector', () => {
 
       const result = await detectContext(tempDir);
 
-      expect(result.context).toBeUndefined();
-      expect(result.error).toBeDefined();
+      expect(result.success).toBe(false);
+      if (result.success) return;
       expect(result.error).toContain('No Unreal Engine project (.uproject) or plugin (.uplugin) files found');
     });
 
@@ -78,8 +79,8 @@ describe('Context Detector', () => {
 
       const result = await detectContext(tempDir);
 
-      expect(result.context).toBeUndefined();
-      expect(result.error).toBeDefined();
+      expect(result.success).toBe(false);
+      if (result.success) return;
       expect(result.error).toContain('Multiple .uplugin files found');
     });
 
@@ -89,8 +90,9 @@ describe('Context Detector', () => {
 
       const result = await detectContext(tempDir);
 
-      expect(result.context).toBeDefined();
-      expect(result.context!.type).toBe('project');
+      expect(result.success).toBe(true);
+      if (!result.success) return;
+      expect(result.context.type).toBe('project');
       expect(result.warnings).toBeDefined();
       expect(result.warnings![0]).toContain('Multiple .uproject files found');
     });
@@ -135,46 +137,50 @@ describe('Context Detector', () => {
               // Verify behavior based on file configuration
               if (dirConfig.uprojectFiles.length === 0 && dirConfig.upluginFiles.length === 0) {
                 // No Unreal files - should return error
-                expect(result.context).toBeUndefined();
-                expect(result.error).toBeDefined();
-                expect(result.error).toContain('No Unreal Engine project (.uproject) or plugin (.uplugin) files found');
-                
+                expect(result.success).toBe(false);
+                if (!result.success) {
+                  expect(result.error).toContain('No Unreal Engine project (.uproject) or plugin (.uplugin) files found');
+                }
+
               } else if (dirConfig.upluginFiles.length > 1 && dirConfig.uprojectFiles.length === 0) {
                 // Multiple plugins only - should return error
-                expect(result.context).toBeUndefined();
-                expect(result.error).toBeDefined();
-                expect(result.error).toContain('Multiple .uplugin files found');
-                
+                expect(result.success).toBe(false);
+                if (!result.success) {
+                  expect(result.error).toContain('Multiple .uplugin files found');
+                }
+
               } else if (dirConfig.uprojectFiles.length > 0) {
                 // Has project files - should prioritize project
-                expect(result.context).toBeDefined();
-                expect(result.context!.type).toBe('project');
-                expect(result.context!.directory).toBe(testDir);
-                expect(result.context!.primaryFile).toContain('.uproject');
-                
+                expect(result.success).toBe(true);
+                if (!result.success) return;
+                expect(result.context.type).toBe('project');
+                expect(result.context.directory).toBe(testDir);
+                expect(result.context.primaryFile).toContain('.uproject');
+
                 // Should warn about multiple projects if applicable
                 if (dirConfig.uprojectFiles.length > 1) {
                   expect(result.warnings).toBeDefined();
                   expect(result.warnings!.some(w => w.includes('Multiple .uproject files found'))).toBe(true);
                 }
-                
+
                 // Should warn about ignored plugin if both exist
                 if (dirConfig.upluginFiles.length > 0) {
                   expect(result.warnings).toBeDefined();
                   expect(result.warnings!.some(w => w.includes('Both .uproject and .uplugin files found'))).toBe(true);
                 }
-                
+
               } else if (dirConfig.upluginFiles.length === 1) {
                 // Single plugin only - should detect plugin
-                expect(result.context).toBeDefined();
-                expect(result.context!.type).toBe('plugin');
-                expect(result.context!.directory).toBe(testDir);
-                expect(result.context!.primaryFile).toContain('.uplugin');
-                expect(result.context!.pluginName).toBeDefined();
-                
+                expect(result.success).toBe(true);
+                if (!result.success) return;
+                expect(result.context.type).toBe('plugin');
+                expect(result.context.directory).toBe(testDir);
+                expect(result.context.primaryFile).toContain('.uplugin');
+                expect(result.context.pluginName).toBeDefined();
+
                 // Plugin name should match filename without extension
                 const expectedPluginName = path.basename(dirConfig.upluginFiles[0], '.uplugin');
-                expect(result.context!.pluginName).toBe(expectedPluginName);
+                expect(result.context.pluginName).toBe(expectedPluginName);
               }
               
             } finally {

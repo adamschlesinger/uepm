@@ -113,7 +113,7 @@ describe('Init Command', () => {
       expect(packageJson.version).toBe('1.0.0');
       expect(packageJson.private).toBe(true);
       expect(packageJson.scripts.postinstall).toBe('uepm-postinstall');
-      expect(packageJson.devDependencies['@uepm/postinstall']).toBe('^0.1.0');
+      expect(packageJson.devDependencies['@uepm/postinstall']).toBe('^1.0.0');
     });
   });
 
