@@ -538,4 +538,88 @@ describe('Init Command', () => {
       );
     });
   });
+
+  // Task 9.1 — Requirements 5.5, 2.5, 2.6
+  describe('error handling — plugin context', () => {
+    it('should report file location when uplugin contains invalid JSON', async () => {
+      const upluginPath = path.join(tempDir, 'MyPlugin.uplugin');
+      await fs.writeFile(upluginPath, '{ this is not valid json }');
+
+      const result = await init({ projectDir: tempDir });
+
+      expect(result.success).toBe(false);
+      expect(result.message).toContain('MyPlugin.uplugin');
+    });
+
+    it('should include parse error details when uplugin JSON is malformed', async () => {
+      const upluginPath = path.join(tempDir, 'BadPlugin.uplugin');
+      await fs.writeFile(upluginPath, '{ "FileVersion": 3, "broken": }');
+
+      const result = await init({ projectDir: tempDir });
+
+      expect(result.success).toBe(false);
+      // formatErrorMessage includes a "Details:" line with the actual SyntaxError text
+      expect(result.message).toContain('Details:');
+    });
+
+    it('should report a clear error when uplugin file is missing after detection', async () => {
+      // Create the uplugin so context detection succeeds, then delete it before init reads it
+      const upluginPath = path.join(tempDir, 'GonePlugin.uplugin');
+      await fs.writeFile(upluginPath, JSON.stringify({ FileVersion: 3 }));
+      await fs.unlink(upluginPath);
+
+      const result = await init({ projectDir: tempDir });
+
+      expect(result.success).toBe(false);
+      expect(result.message).toBeTruthy();
+    });
+
+    it('should report error and location when uplugin lacks required FileVersion field', async () => {
+      const upluginPath = path.join(tempDir, 'NoVersion.uplugin');
+      await fs.writeFile(upluginPath, JSON.stringify({ FriendlyName: 'Test Plugin' }));
+
+      const result = await init({ projectDir: tempDir });
+
+      expect(result.success).toBe(false);
+      expect(result.message).toContain('NoVersion.uplugin');
+    });
+
+    it('should report error when directory has no Unreal files at all', async () => {
+      // Empty temp dir — no .uproject or .uplugin
+
+      const result = await init({ projectDir: tempDir });
+
+      expect(result.success).toBe(false);
+      expect(result.message).toContain('.uproject');
+      expect(result.message).toContain('.uplugin');
+    });
+
+    it('should report error when multiple uplugin files exist', async () => {
+      await fs.writeFile(path.join(tempDir, 'PluginA.uplugin'), JSON.stringify({ FileVersion: 3 }));
+      await fs.writeFile(path.join(tempDir, 'PluginB.uplugin'), JSON.stringify({ FileVersion: 3 }));
+
+      const result = await init({ projectDir: tempDir });
+
+      expect(result.success).toBe(false);
+      expect(result.message).toContain('Multiple .uplugin files');
+    });
+
+    it('should report error when projectDir does not exist', async () => {
+      const result = await init({ projectDir: path.join(tempDir, 'does-not-exist') });
+
+      expect(result.success).toBe(false);
+      expect(result.message).toBeTruthy();
+    });
+
+    it('should include suggestion text in the error message for known error types', async () => {
+      const upluginPath = path.join(tempDir, 'MyPlugin.uplugin');
+      await fs.writeFile(upluginPath, 'not json at all');
+
+      const result = await init({ projectDir: tempDir });
+
+      expect(result.success).toBe(false);
+      // formatErrorMessage includes a "Suggestion:" line for UEPMErrors that have one
+      expect(result.message).toContain('Suggestion:');
+    });
+  });
 });

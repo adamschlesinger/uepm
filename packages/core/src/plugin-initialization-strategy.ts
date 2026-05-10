@@ -1,7 +1,7 @@
 import * as path from 'path';
 import { promises as fs } from 'fs';
 import { InitContext, PackageJson } from './types';
-import { UEPMError } from './errors';
+import { UEPMError, formatErrorMessage } from './errors';
 import { extractPluginMetadata, PluginMetadata } from './uplugin-manager';
 import { generatePluginPackageJsonWithDevConfig, mergePluginPackageJson, validatePluginPackageJson } from './plugin-package-json-generator';
 import * as packageJsonManager from './package-json-manager';
@@ -140,7 +140,7 @@ export class PluginInitializationStrategy implements InitializationStrategy {
       if (error instanceof UEPMError) {
         return {
           success: false,
-          message: error.message + (error.suggestion ? `\n${error.suggestion}` : ''),
+          message: formatErrorMessage(error.toErrorMessage()),
           context: 'plugin',
           filesCreated,
           filesModified

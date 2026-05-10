@@ -53,7 +53,7 @@ The sample project includes example plugins and demonstrates the complete workfl
 
 ### `npx @uepm/init`
 
-Initialize an Unreal Engine project for NPM plugin support.
+Initialize an Unreal Engine project **or plugin** for NPM support. The command automatically detects context from the files in the current directory.
 
 **Usage:**
 ```bash
@@ -66,16 +66,56 @@ npx @uepm/init [options]
 - `-h, --help` - Display help information
 - `-V, --version` - Display version number
 
+#### Project initialization
+
+Run in a directory containing a `.uproject` file:
+
+```bash
+cd YourUnrealProject
+npx @uepm/init
+```
+
+This will:
+- Add `UEPMPlugins` to your project's `AdditionalPluginDirectories`
+- Create or update `package.json` with the `uepm-postinstall` hook
+
+#### Plugin initialization
+
+Run in a directory containing a `.uplugin` file:
+
+```bash
+cd YourPlugin
+npx @uepm/init
+```
+
+This will:
+- Read metadata from your `.uplugin` file (name, version, description, author)
+- Create or update `package.json` configured for NPM distribution
+- Set the `unreal.engineVersion` compatibility range
+- Include a `files` array covering `Source/`, `Content/`, `Resources/`, and `Config/`
+- Add build scripts if a `Source/` directory is detected
+- Create or update `.gitignore` with Unreal Engine plugin patterns
+
 **Examples:**
 ```bash
-# Initialize current directory
+# Initialize current directory (project or plugin, auto-detected)
 npx @uepm/init
 
-# Force reinitialize a specific project
-npx @uepm/init --force --project-dir ./MyProject
-
-# Initialize with verbose output
+# Force reinitialize
 npx @uepm/init --force
+
+# Initialize a specific directory
+npx @uepm/init --project-dir ./MyPlugin
+```
+
+After plugin initialization, review the generated `package.json` and then publish:
+
+```bash
+# Review and adjust the generated configuration
+cat package.json
+
+# Publish to NPM
+npm publish
 ```
 
 ### `uepm-postinstall`
