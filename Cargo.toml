@@ -1,0 +1,38 @@
+[package]
+name = "uepm"
+version = "2.0.0"
+edition = "2021"
+description = "Unreal Engine Package Manager"
+
+[[bin]]
+name = "uepm"
+path = "src/main.rs"
+
+[lib]
+name = "uepm"
+path = "src/lib.rs"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+reqwest = { version = "0.13", features = ["json", "stream"] }
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+configparser = "3"
+tar = "0.4"
+flate2 = "1"
+semver = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+crossterm = "0.29"
+dotenvy = "0.15"
+thiserror = "2"
+dialoguer = "0.12"
+sha2 = "0.11"
+base64 = "0.22"
+bytes = "1"
+urlencoding = "2"
+
+[dev-dependencies]
+mockito = "1"
+tempfile = "3"
