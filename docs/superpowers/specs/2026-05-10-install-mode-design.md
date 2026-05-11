@@ -41,16 +41,14 @@ The value is written during `npx @uepm/init` (project context) and read at runti
 
 `detectInstallMode(directory: string): Promise<InstallMode>` in `@uepm/core` walks up the directory tree checking for VCS indicators and returns the recommended default:
 
-**P4 indicators** → `'copy'`:
-- `P4CONFIG` or `P4PORT` environment variables are set
-- A `.p4config` file exists in `directory` or any ancestor directory
+Detection checks in priority order, stopping at the first match:
 
-**Git indicator** → `'symlink'`:
-- A `.git` directory exists in `directory` or any ancestor directory
+1. **P4 indicators** → `'copy'`: `P4CONFIG` or `P4PORT` env vars are set, or a `.p4config` file exists in `directory` or any ancestor
+2. **Windows** → `'copy'`: `process.platform === 'win32'`
+3. **Git** → `'symlink'`: a `.git` directory exists in `directory` or any ancestor
+4. **Neither** → `'symlink'`
 
-**Neither** → `'symlink'`
-
-P4 is checked before git. Studios using P4 sometimes also have git for tooling; the presence of P4 indicators means P4 is the primary VCS.
+**Why Windows defaults to `copy`:** Creating symlinks on Windows requires either Administrator privileges or Developer Mode enabled in system settings. In game studio environments, IT policy almost universally blocks Developer Mode. Defaulting Windows users to `copy` avoids a broken default state. Users who explicitly choose `symlink` on Windows and have Developer Mode enabled will get standard relative symlinks — `SymlinkInstallStrategy` makes no platform-specific adjustments.
 
 ## Init Flow (Project Context)
 
@@ -108,15 +106,7 @@ export interface InstallStrategy {
 
 ### SymlinkInstallStrategy
 
-Extracts the current symlink logic from `setup.ts`. Adds Windows junction support:
-
-```typescript
-const isWindows = process.platform === 'win32';
-// Junctions require absolute targets; Unix symlinks use relative paths
-const target = isWindows ? sourcePath : relativeSourcePath;
-const type = isWindows ? 'junction' : 'dir';
-await fs.symlink(target, uepmLinkPath, type);
-```
+Extracts the current symlink logic from `setup.ts` with no platform-specific changes. Creates a relative `'dir'` symlink on all platforms. If the developer is on Windows without Developer Mode, they will get the OS-level `EPERM` error — which is correct behaviour, since they explicitly chose `symlink` mode against the detected default of `copy`.
 
 ### CopyInstallStrategy
 
@@ -146,20 +136,21 @@ await strategy.cleanup(linkedPluginNames, uepmPluginsDir);
 - **Unknown `installMode`**: `UEPMError` with the invalid value and a list of valid options
 - **Copy failures**: collected and thrown as a batch after the loop (same pattern as current symlink batch errors)
 - **Cleanup**: only removes entries confirmed to be stale (in `UEPMPlugins/` but not in current installed plugin list) — never blindly deletes
-- **Windows junction failure**: the original `EPERM`/`EACCES` error surfaces directly rather than a misleading `EEXIST`
+- **Windows symlink failure (`EPERM`)**: surfaces directly with the OS error — the developer chose `symlink` mode explicitly on a platform where it requires Developer Mode
 
 ## Testing
 
 **`detectInstallMode`** (new test file in `@uepm/core`):
 - P4 env var set → returns `'copy'`
 - `.p4config` file in ancestor directory → returns `'copy'`
+- `process.platform === 'win32'` (mocked) → returns `'copy'`
 - `.git` directory present → returns `'symlink'`
 - Neither → returns `'symlink'`
 - P4 indicators present alongside `.git` → returns `'copy'` (P4 takes precedence)
+- Windows with `.git` present → returns `'copy'` (Windows checked before git)
 
 **`SymlinkInstallStrategy`**:
-- Existing `setup.test.ts` tests migrate here
-- Windows junction path tested with `process.platform` mocked to `'win32'`
+- Existing `setup.test.ts` symlink tests migrate here
 
 **`CopyInstallStrategy`**:
 - Real temp dirs throughout (no mocking)
