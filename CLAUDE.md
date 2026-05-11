@@ -5,72 +5,55 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Build & Test Commands
 
 ```bash
-# Root (all packages)
-npm install          # Install all workspace dependencies
-npm run build        # Build all packages
-npm test             # Run all tests
-npm run clean        # Clean all build artifacts and node_modules
-
-# Per-package (run from packages/<name>/ or use --workspace)
-npm run build        # Compile TypeScript → dist/
-npm test             # Run vitest once
-npm run test:watch   # Run vitest in watch mode
-npm run clean        # Remove dist/
-
-# Run a single test file
-cd packages/core && npx vitest --run src/context-detector.test.ts
+cargo build                          # debug build
+cargo build --release                # release binary → target/release/uepm
+cargo test                           # all tests
+cargo test registry                  # tests matching "registry" (module filter)
+cargo test install_integration       # integration test in tests/
 ```
 
 ## Architecture
 
-UEPM is a monorepo that brings NPM-based distribution to Unreal Engine plugins. The core flow:
+UEPM is a standalone Rust binary that manages Unreal Engine plugins via the npm registry. No Node.js required at runtime.
 
-1. `npx @uepm/init` — run once in a `.uproject` directory. Modifies the project file to add `node_modules` to plugin search paths, generates/updates `package.json`.
-2. `npm install @scope/plugin` — standard NPM install.
-3. `uepm-postinstall` — postinstall hook that creates symlinks in `UEPMPlugins/` and validates engine version compatibility.
+**Entry points:**
+- `src/main.rs` — clap CLI, tokio main, dotenvy + tracing init
+- `src/lib.rs` — re-exports all modules for integration testing
 
-### Packages
+**Core flow:** `uepm init` → creates `uepm.ini` + `UEPMPlugins/` → `uepm install @scope/pkg` → registry fetch → sha512-verified tarball extract → `uepm.lock` written.
 
-| Package | Purpose |
+### Modules
+
+| Module | Purpose |
 |---|---|
-| `@uepm/core` | Shared types, file managers, and utilities |
-| `@uepm/init` | CLI tool (`npx @uepm/init`) using Commander.js |
-| `@uepm/postinstall` | Postinstall hook: symlink setup + validation |
-| `packages/website` | Astro marketing site (independent of above) |
+| `manifest` | Read/write `uepm.ini` via `configparser`. `[settings]` + `[plugins]` sections. |
+| `lockfile` | Read/write `uepm.lock` (JSON). Reproducible installs via locked tarballs. |
+| `uproject` | Find, read, and modify `.uproject` JSON (plugin directory injection). |
+| `registry` | `RegistryClient` — fetch npm package metadata, semver range resolution. |
+| `installer` | Download tarball, verify sha512 integrity, extract stripping `package/` prefix. |
+| `resolver` | Recursive install with conflict detection. Reads plugin's own `uepm.ini` for transitive deps. |
+| `output` | crossterm-colored `print_success` / `print_warn` / `print_error` / `print_info`. |
+| `errors` | `UepmError` enum (thiserror derives). |
+| `commands/init` | VCS detection (`P4PORT`, `.p4config`, `.git`), `InstallMode` enum, dialoguer select. |
+| `commands/install` | Parse `@scope/pkg@ver` specs, resolve+install, update `uepm.ini` + `uepm.lock`. |
+| `commands/uninstall` | Remove `UEPMPlugins/<name>/`, update `uepm.ini`. |
+| `commands/update` | Re-resolve all/one plugin ignoring lockfile, rewrite `uepm.lock`. |
+| `commands/list` | Read manifest + lockfile, print compatibility status. |
 
-### Init Package Flow (`packages/init/src/`)
+### Key files
 
-`cli.ts` → `command-registry.ts` → `InitCommand` (init-command.ts) → `init()` (index.ts) → calls `detectContext()` then dispatches to `PluginInitializationStrategy` or project init logic.
-
-See `packages/core/CLAUDE.md` for a detailed breakdown of core internals.
-
-### Plugin Package Structure
-
-UEPM plugins require a `package.json` with:
-```json
-{
-  "main": "PluginName.uplugin",
-  "unreal": { "engineVersion": ">=5.0.0 <6.0.0", "pluginName": "PluginName" },
-  "keywords": ["unreal", "unreal-engine", "plugin", "uepm"]
-}
+```
+Cargo.toml              — single crate, lib + bin targets
+src/main.rs             — binary (clap Commands enum matches to commands::*)
+src/lib.rs              — pub mod declarations
+tests/install_integration.rs  — end-to-end test using mockito + tempfile
+install.sh              — Unix install script (curl | sh)
+install.ps1             — Windows install script (irm | iex)
+.github/workflows/release.yml  — cross-compile on tag push, creates GitHub Release
 ```
 
-### Testing Approach
+### Testing
 
-- **Vitest** for all unit tests; config at `packages/<name>/vitest.config.ts`
-- **fast-check** for property-based tests; shared arbitraries live in `core/src/test-generators.ts` (not part of the public API — import directly from source in tests)
-- Sample project at `samples/project/` with live `.uproject` for integration testing
-- **Build order matters**: `@uepm/core` must be built before running `npm test` in `packages/init` or `packages/postinstall`. Running `npm test` from the repo root builds all packages first via the `build` workspace script, so this only matters when running per-package tests directly after changing core.
-
-## Keeping CLAUDE.md Files Current
-
-Each significant directory has its own `CLAUDE.md`. When making changes to a package, update the corresponding file if the commands, architecture, or key constraints described there change. Files to keep in sync:
-
-- `CLAUDE.md` — root overview and monorepo commands
-- `packages/CLAUDE.md` — workspace layout and cross-package conventions
-- `packages/core/CLAUDE.md` — core types, exported API, test arbitraries
-- `packages/init/CLAUDE.md` — CLI flow, command registration
-- `packages/postinstall/CLAUDE.md` — setup/validate split, error handling contract
-- `packages/website/CLAUDE.md` — Astro/Tailwind/React stack, env vars, known failing tests
-- `samples/CLAUDE.md` — sample project and plugin structure, validation tests
-- `scripts/CLAUDE.md` — publish and release workflow
+- Unit tests live in each module (`#[cfg(test)] mod tests`)
+- `tests/install_integration.rs` is the integration test — uses `mockito::Server` for a fake npm registry and `tempfile::tempdir` for isolation
+- `UEPM_REGISTRY` env var overrides the registry URL in tests

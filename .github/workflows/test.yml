@@ -2,43 +2,22 @@ name: Test
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main ]
   pull_request:
     branches: [ main ]
 
 jobs:
   test:
     runs-on: ubuntu-latest
-    
-    strategy:
-      matrix:
-        node-version: [18.x, 20.x]
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ matrix.node-version }}
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
 
-      - name: Install dependencies
-        run: npm install
+      - name: Build
+        run: cargo build
 
-      - name: Build packages
-        run: npm run build
-
-      - name: Run tests
-        run: npm test
-
-      - name: Test CLI functionality
-        run: |
-          # Test that the CLI can be invoked
-          node packages/init/bin/uepm-init.js --help
-          node packages/postinstall/bin/uepm-postinstall.js --help
-
-      - name: Test sample project structure
-        run: |
-          cd samples/tests
-          npm test
+      - name: Test
+        run: cargo test
