@@ -48,7 +48,53 @@ pub async fn resolve_and_install(
     token: Option<&str>,
 ) -> Result<(), UepmError> {
     if let Some(existing) = resolved.get(package) {
-        check_conflict(package, existing, range)?;
+        // file: deps never semver-conflict; they're always the local copy
+        if !range.starts_with("file:") {
+            check_conflict(package, existing, range)?;
+        }
+        return Ok(());
+    }
+
+    // file: local path — bypass registry and lockfile entirely
+    if let Some(rel_path) = range.strip_prefix("file:") {
+        let local_path = project_dir.join(rel_path);
+        crate::output::print_info(&format!("Installing {} from {}", package, rel_path));
+
+        let version = crate::installer::copy_local(&local_path, package, uepm_plugins_dir)?;
+        resolved.insert(package.to_string(), version.clone());
+        lock.plugins.insert(
+            package.to_string(),
+            LockedPlugin {
+                resolved: version,
+                tarball: range.to_string(),
+                sha512: String::new(),
+                dependencies: HashMap::new(),
+            },
+        );
+
+        // Resolve transitive deps from the installed plugin's uepm.ini
+        let plugin_dir = uepm_plugins_dir.join(plugin_dir_name(package));
+        if let Ok(plugin_manifest) = read_manifest(&plugin_dir) {
+            for (dep_pkg, dep_range) in &plugin_manifest.plugins {
+                Box::pin(resolve_and_install(
+                    dep_pkg,
+                    dep_range,
+                    project_dir,
+                    uepm_plugins_dir,
+                    lock,
+                    resolved,
+                    client,
+                    token,
+                ))
+                .await?;
+                lock.plugins
+                    .get_mut(package)
+                    .unwrap()
+                    .dependencies
+                    .insert(dep_pkg.clone(), dep_range.clone());
+            }
+        }
+
         return Ok(());
     }
 
@@ -121,6 +167,56 @@ mod tests {
         assert!(result.is_err());
         let err = result.unwrap_err().to_string();
         assert!(err.contains("conflict") || err.contains("Conflict") || err.contains("1.0.0"));
+    }
+
+    #[tokio::test]
+    async fn test_file_dep_copies_local_plugin() {
+        use crate::lockfile::LockFile;
+        use crate::registry::RegistryClient;
+        use tempfile::tempdir;
+
+        // Set up a fake local plugin
+        let plugin_src = tempdir().unwrap();
+        std::fs::write(
+            plugin_src.path().join("LocalPlugin.uplugin"),
+            r#"{"FileVersion": 3, "VersionName": "2.0.0"}"#,
+        )
+        .unwrap();
+
+        // Project dir with the plugin adjacent to it
+        let project = tempdir().unwrap();
+        let plugin_rel = "LocalPlugin";
+        let plugin_abs = project.path().join(plugin_rel);
+        std::fs::create_dir(&plugin_abs).unwrap();
+        std::fs::copy(
+            plugin_src.path().join("LocalPlugin.uplugin"),
+            plugin_abs.join("LocalPlugin.uplugin"),
+        )
+        .unwrap();
+
+        let uepm_dir = project.path().join("UEPMPlugins");
+        std::fs::create_dir(&uepm_dir).unwrap();
+
+        let client = RegistryClient::new("http://localhost:1", None);
+        let mut lock = LockFile::default();
+        let mut resolved = HashMap::new();
+
+        resolve_and_install(
+            "@acme/local-plugin",
+            &format!("file:{plugin_rel}"),
+            project.path(),
+            &uepm_dir,
+            &mut lock,
+            &mut resolved,
+            &client,
+            None,
+        )
+        .await
+        .unwrap();
+
+        assert!(uepm_dir.join("local-plugin").join("LocalPlugin.uplugin").exists());
+        assert_eq!(resolved["@acme/local-plugin"], "2.0.0");
+        assert!(lock.plugins["@acme/local-plugin"].tarball.starts_with("file:"));
     }
 
     #[test]

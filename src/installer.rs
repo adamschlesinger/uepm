@@ -93,6 +93,63 @@ fn extract_tarball(data: &[u8], dest: &Path) -> Result<(), UepmError> {
     Ok(())
 }
 
+/// Copy a local directory into `uepm_plugins_dir/<plugin_dir_name>/`.
+/// Returns the version read from the first `.uplugin` file, or `"0.0.0"`.
+pub fn copy_local(
+    src: &Path,
+    package_name: &str,
+    uepm_plugins_dir: &Path,
+) -> Result<String, UepmError> {
+    if !src.exists() {
+        return Err(UepmError::Io(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            format!("local plugin path not found: {}", src.display()),
+        )));
+    }
+
+    let dir_name = package_name.split('/').last().unwrap_or(package_name);
+    let dest = uepm_plugins_dir.join(dir_name);
+
+    if dest.exists() {
+        std::fs::remove_dir_all(&dest)?;
+    }
+
+    copy_dir_all(src, &dest)?;
+
+    let version = read_uplugin_version(&dest).unwrap_or_else(|| "0.0.0".to_string());
+    Ok(version)
+}
+
+fn copy_dir_all(src: &Path, dst: &Path) -> Result<(), UepmError> {
+    std::fs::create_dir_all(dst)?;
+    for entry in std::fs::read_dir(src)? {
+        let entry = entry?;
+        let dst_path = dst.join(entry.file_name());
+        if entry.file_type()?.is_dir() {
+            copy_dir_all(&entry.path(), &dst_path)?;
+        } else {
+            std::fs::copy(entry.path(), &dst_path)?;
+        }
+    }
+    Ok(())
+}
+
+fn read_uplugin_version(plugin_dir: &Path) -> Option<String> {
+    let dir = std::fs::read_dir(plugin_dir).ok()?;
+    for entry in dir.flatten() {
+        let path = entry.path();
+        if path.extension().and_then(|e| e.to_str()) != Some("uplugin") {
+            continue;
+        }
+        if let Ok(content) = std::fs::read_to_string(&path) {
+            if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) {
+                return json["VersionName"].as_str().map(String::from);
+            }
+        }
+    }
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -159,6 +216,38 @@ mod tests {
             .join("test-plugin")
             .join("TestPlugin.uplugin")
             .exists());
+    }
+
+    #[test]
+    fn test_copy_local_installs_files_and_reads_version() {
+        let src = tempdir().unwrap();
+        std::fs::write(
+            src.path().join("TestPlugin.uplugin"),
+            r#"{"FileVersion": 3, "VersionName": "1.2.3"}"#,
+        )
+        .unwrap();
+        std::fs::create_dir(src.path().join("Source")).unwrap();
+        std::fs::write(src.path().join("Source/MyFile.cpp"), "// code").unwrap();
+
+        let dest_root = tempdir().unwrap();
+        let uepm_dir = dest_root.path().join("UEPMPlugins");
+        std::fs::create_dir(&uepm_dir).unwrap();
+
+        let version = copy_local(src.path(), "@acme/test-plugin", &uepm_dir).unwrap();
+
+        assert_eq!(version, "1.2.3");
+        assert!(uepm_dir.join("test-plugin").join("TestPlugin.uplugin").exists());
+        assert!(uepm_dir.join("test-plugin").join("Source").join("MyFile.cpp").exists());
+    }
+
+    #[test]
+    fn test_copy_local_missing_path_errors() {
+        let dest_root = tempdir().unwrap();
+        let uepm_dir = dest_root.path().join("UEPMPlugins");
+        std::fs::create_dir(&uepm_dir).unwrap();
+
+        let result = copy_local(Path::new("/nonexistent/path"), "@acme/test-plugin", &uepm_dir);
+        assert!(result.is_err());
     }
 
     #[tokio::test]
