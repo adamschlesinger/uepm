@@ -1,5 +1,5 @@
 use crate::errors::UepmError;
-use crate::installer::download_and_extract;
+use crate::installer::{download_and_extract, symlink_local};
 use crate::lockfile::{LockFile, LockedPlugin};
 use crate::manifest::read_manifest;
 use crate::registry::RegistryClient;
@@ -60,7 +60,7 @@ pub async fn resolve_and_install(
         let local_path = project_dir.join(rel_path);
         crate::output::print_info(&format!("Installing {} from {}", package, rel_path));
 
-        let version = crate::installer::copy_local(&local_path, package, uepm_plugins_dir)?;
+        let version = symlink_local(&local_path, package, uepm_plugins_dir)?;
         resolved.insert(package.to_string(), version.clone());
         lock.plugins.insert(
             package.to_string(),
@@ -214,7 +214,9 @@ mod tests {
         .await
         .unwrap();
 
-        assert!(uepm_dir.join("local-plugin").join("LocalPlugin.uplugin").exists());
+        let dest = uepm_dir.join("local-plugin");
+        assert!(dest.is_symlink());
+        assert!(dest.join("LocalPlugin.uplugin").exists());
         assert_eq!(resolved["@acme/local-plugin"], "2.0.0");
         assert!(lock.plugins["@acme/local-plugin"].tarball.starts_with("file:"));
     }

@@ -93,9 +93,10 @@ fn extract_tarball(data: &[u8], dest: &Path) -> Result<(), UepmError> {
     Ok(())
 }
 
-/// Copy a local directory into `uepm_plugins_dir/<plugin_dir_name>/`.
-/// Returns the version read from the first `.uplugin` file, or `"0.0.0"`.
-pub fn copy_local(
+/// Create a symlink at `uepm_plugins_dir/<plugin_dir_name>` pointing to `src`.
+/// Returns the version read from the first `.uplugin` file in `src`, or `"0.0.0"`.
+/// Any existing entry at the destination (symlink, file, or directory) is replaced.
+pub fn symlink_local(
     src: &Path,
     package_name: &str,
     uepm_plugins_dir: &Path,
@@ -107,31 +108,27 @@ pub fn copy_local(
         )));
     }
 
+    let abs_src = src.canonicalize()?;
+    let version = read_uplugin_version(&abs_src).unwrap_or_else(|| "0.0.0".to_string());
+
     let dir_name = package_name.split('/').last().unwrap_or(package_name);
     let dest = uepm_plugins_dir.join(dir_name);
 
-    if dest.exists() {
-        std::fs::remove_dir_all(&dest)?;
-    }
-
-    copy_dir_all(src, &dest)?;
-
-    let version = read_uplugin_version(&dest).unwrap_or_else(|| "0.0.0".to_string());
-    Ok(version)
-}
-
-fn copy_dir_all(src: &Path, dst: &Path) -> Result<(), UepmError> {
-    std::fs::create_dir_all(dst)?;
-    for entry in std::fs::read_dir(src)? {
-        let entry = entry?;
-        let dst_path = dst.join(entry.file_name());
-        if entry.file_type()?.is_dir() {
-            copy_dir_all(&entry.path(), &dst_path)?;
+    if dest.symlink_metadata().is_ok() {
+        if dest.is_symlink() || dest.is_file() {
+            std::fs::remove_file(&dest)?;
         } else {
-            std::fs::copy(entry.path(), &dst_path)?;
+            std::fs::remove_dir_all(&dest)?;
         }
     }
-    Ok(())
+
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(&abs_src, &dest)?;
+
+    #[cfg(windows)]
+    std::os::windows::fs::symlink_dir(&abs_src, &dest)?;
+
+    Ok(version)
 }
 
 fn read_uplugin_version(plugin_dir: &Path) -> Option<String> {
@@ -219,7 +216,7 @@ mod tests {
     }
 
     #[test]
-    fn test_copy_local_installs_files_and_reads_version() {
+    fn test_symlink_local_creates_symlink_and_reads_version() {
         let src = tempdir().unwrap();
         std::fs::write(
             src.path().join("TestPlugin.uplugin"),
@@ -233,20 +230,43 @@ mod tests {
         let uepm_dir = dest_root.path().join("UEPMPlugins");
         std::fs::create_dir(&uepm_dir).unwrap();
 
-        let version = copy_local(src.path(), "@acme/test-plugin", &uepm_dir).unwrap();
+        let version = symlink_local(src.path(), "@acme/test-plugin", &uepm_dir).unwrap();
+        let dest = uepm_dir.join("test-plugin");
 
         assert_eq!(version, "1.2.3");
-        assert!(uepm_dir.join("test-plugin").join("TestPlugin.uplugin").exists());
-        assert!(uepm_dir.join("test-plugin").join("Source").join("MyFile.cpp").exists());
+        assert!(dest.is_symlink());
+        // Contents accessible through symlink
+        assert!(dest.join("TestPlugin.uplugin").exists());
+        assert!(dest.join("Source/MyFile.cpp").exists());
     }
 
     #[test]
-    fn test_copy_local_missing_path_errors() {
+    fn test_symlink_local_replaces_existing_symlink() {
+        let src = tempdir().unwrap();
+        std::fs::write(
+            src.path().join("Plugin.uplugin"),
+            r#"{"FileVersion": 3, "VersionName": "2.0.0"}"#,
+        )
+        .unwrap();
+
         let dest_root = tempdir().unwrap();
         let uepm_dir = dest_root.path().join("UEPMPlugins");
         std::fs::create_dir(&uepm_dir).unwrap();
 
-        let result = copy_local(Path::new("/nonexistent/path"), "@acme/test-plugin", &uepm_dir);
+        symlink_local(src.path(), "@acme/plug", &uepm_dir).unwrap();
+        // Second call should not error
+        let version = symlink_local(src.path(), "@acme/plug", &uepm_dir).unwrap();
+        assert_eq!(version, "2.0.0");
+        assert!(uepm_dir.join("plug").is_symlink());
+    }
+
+    #[test]
+    fn test_symlink_local_missing_path_errors() {
+        let dest_root = tempdir().unwrap();
+        let uepm_dir = dest_root.path().join("UEPMPlugins");
+        std::fs::create_dir(&uepm_dir).unwrap();
+
+        let result = symlink_local(Path::new("/nonexistent/path"), "@acme/test-plugin", &uepm_dir);
         assert!(result.is_err());
     }
 
