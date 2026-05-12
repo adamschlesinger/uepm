@@ -1,13 +1,31 @@
 use crate::errors::UepmError;
-use configparser::ini::Ini;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
 
+// Public flat struct — unchanged API for all callers
 #[derive(Debug, Default, Clone)]
 pub struct ProjectManifest {
     pub plugins: HashMap<String, String>,
     pub engine_version: Option<String>,
     pub commit_plugins: bool,
+}
+
+// Private TOML representation matching the [Settings] / [Plugins] sections
+#[derive(Serialize, Deserialize, Default)]
+struct TomlManifest {
+    #[serde(rename = "Settings", default)]
+    settings: TomlSettings,
+    #[serde(rename = "Plugins", default)]
+    plugins: HashMap<String, String>,
+}
+
+#[derive(Serialize, Deserialize, Default)]
+struct TomlSettings {
+    #[serde(rename = "EngineVersion", skip_serializing_if = "Option::is_none")]
+    engine_version: Option<String>,
+    #[serde(rename = "CommitPlugins", default)]
+    commit_plugins: bool,
 }
 
 fn manifest_path(project_dir: &Path) -> std::path::PathBuf {
@@ -20,32 +38,14 @@ pub fn manifest_exists(project_dir: &Path) -> bool {
 
 pub fn read_manifest(project_dir: &Path) -> Result<ProjectManifest, UepmError> {
     let path = manifest_path(project_dir);
-    let mut config = Ini::new_cs();
-    config
-        .load(path.to_str().unwrap())
+    let content = std::fs::read_to_string(&path)?;
+    let toml: TomlManifest = toml::from_str(&content)
         .map_err(|e| UepmError::ManifestParse(e.to_string()))?;
 
-    let plugins = config
-        .get_map_ref()
-        .get("Plugins")
-        .map(|section| {
-            section
-                .iter()
-                .filter_map(|(k, v)| v.as_ref().map(|v| (k.clone(), v.trim().to_string())))
-                .collect()
-        })
-        .unwrap_or_default();
-
-    let engine_version = config.get("Settings", "EngineVersion");
-    let commit_plugins = config
-        .get("Settings", "CommitPlugins")
-        .map(|v| v.trim() == "true")
-        .unwrap_or(false);
-
     Ok(ProjectManifest {
-        plugins,
-        engine_version,
-        commit_plugins,
+        plugins: toml.plugins,
+        engine_version: toml.settings.engine_version,
+        commit_plugins: toml.settings.commit_plugins,
     })
 }
 
@@ -55,24 +55,17 @@ pub fn write_manifest(project_dir: &Path, manifest: &ProjectManifest) -> Result<
         std::fs::create_dir_all(parent)?;
     }
 
-    let mut config = Ini::new_cs();
+    let toml = TomlManifest {
+        settings: TomlSettings {
+            engine_version: manifest.engine_version.clone(),
+            commit_plugins: manifest.commit_plugins,
+        },
+        plugins: manifest.plugins.clone(),
+    };
 
-    for (name, range) in &manifest.plugins {
-        config.set("Plugins", name, Some(range.clone()));
-    }
-
-    if let Some(ref ev) = manifest.engine_version {
-        config.set("Settings", "EngineVersion", Some(ev.clone()));
-    }
-    config.set(
-        "Settings",
-        "CommitPlugins",
-        Some(manifest.commit_plugins.to_string()),
-    );
-
-    config
-        .write(path.to_str().unwrap())
+    let content = toml::to_string_pretty(&toml)
         .map_err(|e| UepmError::ManifestParse(e.to_string()))?;
+    std::fs::write(&path, content)?;
     Ok(())
 }
 
@@ -81,12 +74,14 @@ pub fn create_manifest(
     engine_version: Option<&str>,
     commit_plugins: bool,
 ) -> Result<(), UepmError> {
-    let manifest = ProjectManifest {
-        plugins: HashMap::new(),
-        engine_version: engine_version.map(|s| s.to_string()),
-        commit_plugins,
-    };
-    write_manifest(project_dir, &manifest)
+    write_manifest(
+        project_dir,
+        &ProjectManifest {
+            plugins: HashMap::new(),
+            engine_version: engine_version.map(|s| s.to_string()),
+            commit_plugins,
+        },
+    )
 }
 
 pub fn add_plugin(project_dir: &Path, package: &str, range: &str) -> Result<(), UepmError> {
@@ -111,7 +106,14 @@ mod tests {
         fs::create_dir_all(dir.join("Config")).unwrap();
         fs::write(
             dir.join("Config/UEPM.ini"),
-            "[Plugins]\n@acme/cool-plugin = ^1.0.0\n@studio/other = ~2.1.0\n\n[Settings]\nEngineVersion = 5.7\nCommitPlugins = false\n",
+            r#"[Settings]
+EngineVersion = "5.7"
+CommitPlugins = false
+
+[Plugins]
+"@acme/cool-plugin" = "^1.0.0"
+"@studio/other" = "~2.1.0"
+"#,
         )
         .unwrap();
     }
@@ -139,7 +141,7 @@ mod tests {
         assert!(content.contains("@foo/bar"));
         assert!(content.contains("^1.0.0"));
         assert!(content.contains("EngineVersion"));
-        assert!(content.contains("CommitPlugins=true"));
+        assert!(content.contains("CommitPlugins = true"));
     }
 
     #[test]

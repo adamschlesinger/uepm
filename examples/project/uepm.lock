@@ -1,15 +1,15 @@
 {
   "version": 1,
   "plugins": {
-    "@uepm/example-plugin": {
-      "resolved": "1.0.1",
-      "tarball": "file:../plugins/example-plugin",
-      "sha512": "",
-      "dependencies": {}
-    },
     "@uepm/dependency-plugin": {
       "resolved": "1.0.1",
       "tarball": "file:../plugins/dependency-plugin",
+      "sha512": "",
+      "dependencies": {}
+    },
+    "@uepm/example-plugin": {
+      "resolved": "1.0.1",
+      "tarball": "file:../plugins/example-plugin",
       "sha512": "",
       "dependencies": {}
     }

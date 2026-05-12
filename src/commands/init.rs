@@ -185,7 +185,7 @@ mod tests {
         std::fs::create_dir(dir.path().join("Config")).unwrap();
         std::fs::write(
             dir.path().join("Config/UEPM.ini"),
-            "[Plugins]\n@acme/existing = ^1.0.0\n",
+            "[Plugins]\n\"@acme/existing\" = \"^1.0.0\"\n",
         )
         .unwrap();
 
