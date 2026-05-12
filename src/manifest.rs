@@ -20,14 +20,14 @@ pub fn manifest_exists(project_dir: &Path) -> bool {
 
 pub fn read_manifest(project_dir: &Path) -> Result<ProjectManifest, UepmError> {
     let path = manifest_path(project_dir);
-    let mut config = Ini::new();
+    let mut config = Ini::new_cs();
     config
         .load(path.to_str().unwrap())
         .map_err(|e| UepmError::ManifestParse(e.to_string()))?;
 
     let plugins = config
         .get_map_ref()
-        .get("plugins")
+        .get("Plugins")
         .map(|section| {
             section
                 .iter()
@@ -36,9 +36,9 @@ pub fn read_manifest(project_dir: &Path) -> Result<ProjectManifest, UepmError> {
         })
         .unwrap_or_default();
 
-    let engine_version = config.get("settings", "engine_version");
+    let engine_version = config.get("Settings", "EngineVersion");
     let commit_plugins = config
-        .get("settings", "commit_plugins")
+        .get("Settings", "CommitPlugins")
         .map(|v| v.trim() == "true")
         .unwrap_or(false);
 
@@ -55,18 +55,18 @@ pub fn write_manifest(project_dir: &Path, manifest: &ProjectManifest) -> Result<
         std::fs::create_dir_all(parent)?;
     }
 
-    let mut config = Ini::new();
+    let mut config = Ini::new_cs();
 
     for (name, range) in &manifest.plugins {
-        config.set("plugins", name, Some(range.clone()));
+        config.set("Plugins", name, Some(range.clone()));
     }
 
     if let Some(ref ev) = manifest.engine_version {
-        config.set("settings", "engine_version", Some(ev.clone()));
+        config.set("Settings", "EngineVersion", Some(ev.clone()));
     }
     config.set(
-        "settings",
-        "commit_plugins",
+        "Settings",
+        "CommitPlugins",
         Some(manifest.commit_plugins.to_string()),
     );
 
@@ -111,7 +111,7 @@ mod tests {
         fs::create_dir_all(dir.join("Config")).unwrap();
         fs::write(
             dir.join("Config/UEPM.ini"),
-            "[plugins]\n@acme/cool-plugin = ^1.0.0\n@studio/other = ~2.1.0\n\n[settings]\nengine_version = 5.7\ncommit_plugins = false\n",
+            "[Plugins]\n@acme/cool-plugin = ^1.0.0\n@studio/other = ~2.1.0\n\n[Settings]\nEngineVersion = 5.7\nCommitPlugins = false\n",
         )
         .unwrap();
     }
@@ -138,8 +138,8 @@ mod tests {
         let content = fs::read_to_string(dir.path().join("Config/UEPM.ini")).unwrap();
         assert!(content.contains("@foo/bar"));
         assert!(content.contains("^1.0.0"));
-        assert!(content.contains("engine_version"));
-        assert!(content.contains("commit_plugins=true"));
+        assert!(content.contains("EngineVersion"));
+        assert!(content.contains("CommitPlugins=true"));
     }
 
     #[test]
