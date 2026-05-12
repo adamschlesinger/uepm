@@ -7,10 +7,19 @@ use std::path::Path;
 pub struct ProjectManifest {
     pub plugins: HashMap<String, String>,
     pub engine_version: Option<String>,
+    pub commit_plugins: bool,
+}
+
+fn manifest_path(project_dir: &Path) -> std::path::PathBuf {
+    project_dir.join("Config").join("UEPM.ini")
+}
+
+pub fn manifest_exists(project_dir: &Path) -> bool {
+    manifest_path(project_dir).exists()
 }
 
 pub fn read_manifest(project_dir: &Path) -> Result<ProjectManifest, UepmError> {
-    let path = project_dir.join("uepm.ini");
+    let path = manifest_path(project_dir);
     let mut config = Ini::new();
     config
         .load(path.to_str().unwrap())
@@ -28,15 +37,24 @@ pub fn read_manifest(project_dir: &Path) -> Result<ProjectManifest, UepmError> {
         .unwrap_or_default();
 
     let engine_version = config.get("settings", "engine_version");
+    let commit_plugins = config
+        .get("settings", "commit_plugins")
+        .map(|v| v.trim() == "true")
+        .unwrap_or(false);
 
     Ok(ProjectManifest {
         plugins,
         engine_version,
+        commit_plugins,
     })
 }
 
 pub fn write_manifest(project_dir: &Path, manifest: &ProjectManifest) -> Result<(), UepmError> {
-    let path = project_dir.join("uepm.ini");
+    let path = manifest_path(project_dir);
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+
     let mut config = Ini::new();
 
     for (name, range) in &manifest.plugins {
@@ -46,6 +64,11 @@ pub fn write_manifest(project_dir: &Path, manifest: &ProjectManifest) -> Result<
     if let Some(ref ev) = manifest.engine_version {
         config.set("settings", "engine_version", Some(ev.clone()));
     }
+    config.set(
+        "settings",
+        "commit_plugins",
+        Some(manifest.commit_plugins.to_string()),
+    );
 
     config
         .write(path.to_str().unwrap())
@@ -53,10 +76,15 @@ pub fn write_manifest(project_dir: &Path, manifest: &ProjectManifest) -> Result<
     Ok(())
 }
 
-pub fn create_manifest(project_dir: &Path, engine_version: Option<&str>) -> Result<(), UepmError> {
+pub fn create_manifest(
+    project_dir: &Path,
+    engine_version: Option<&str>,
+    commit_plugins: bool,
+) -> Result<(), UepmError> {
     let manifest = ProjectManifest {
         plugins: HashMap::new(),
         engine_version: engine_version.map(|s| s.to_string()),
+        commit_plugins,
     };
     write_manifest(project_dir, &manifest)
 }
@@ -79,19 +107,24 @@ mod tests {
     use std::fs;
     use tempfile::tempdir;
 
-    fn sample_ini() -> &'static str {
-        "[plugins]\n@acme/cool-plugin = ^1.0.0\n@studio/other = ~2.1.0\n\n[settings]\nengine_version = 5.7\n"
+    fn write_sample_ini(dir: &Path) {
+        fs::create_dir_all(dir.join("Config")).unwrap();
+        fs::write(
+            dir.join("Config/UEPM.ini"),
+            "[plugins]\n@acme/cool-plugin = ^1.0.0\n@studio/other = ~2.1.0\n\n[settings]\nengine_version = 5.7\ncommit_plugins = false\n",
+        )
+        .unwrap();
     }
 
     #[test]
     fn test_parse_manifest() {
         let dir = tempdir().unwrap();
-        let path = dir.path().join("uepm.ini");
-        fs::write(&path, sample_ini()).unwrap();
+        write_sample_ini(dir.path());
         let m = read_manifest(dir.path()).unwrap();
         assert_eq!(m.plugins.get("@acme/cool-plugin").map(|s| s.as_str()), Some("^1.0.0"));
         assert_eq!(m.plugins.get("@studio/other").map(|s| s.as_str()), Some("~2.1.0"));
         assert_eq!(m.engine_version.as_deref(), Some("5.7"));
+        assert!(!m.commit_plugins);
     }
 
     #[test]
@@ -100,20 +133,23 @@ mod tests {
         let mut m = ProjectManifest::default();
         m.plugins.insert("@foo/bar".to_string(), "^1.0.0".to_string());
         m.engine_version = Some("5.3".to_string());
+        m.commit_plugins = true;
         write_manifest(dir.path(), &m).unwrap();
-        let content = fs::read_to_string(dir.path().join("uepm.ini")).unwrap();
+        let content = fs::read_to_string(dir.path().join("Config/UEPM.ini")).unwrap();
         assert!(content.contains("@foo/bar"));
         assert!(content.contains("^1.0.0"));
         assert!(content.contains("engine_version"));
+        assert!(content.contains("commit_plugins=true"));
     }
 
     #[test]
     fn test_create_manifest() {
         let dir = tempdir().unwrap();
-        create_manifest(dir.path(), Some("5.4")).unwrap();
+        create_manifest(dir.path(), Some("5.4"), false).unwrap();
         let m = read_manifest(dir.path()).unwrap();
         assert!(m.plugins.is_empty());
         assert_eq!(m.engine_version.as_deref(), Some("5.4"));
+        assert!(!m.commit_plugins);
     }
 
     #[test]
@@ -125,7 +161,7 @@ mod tests {
     #[test]
     fn test_add_and_remove_plugin() {
         let dir = tempdir().unwrap();
-        create_manifest(dir.path(), None).unwrap();
+        create_manifest(dir.path(), None, false).unwrap();
         add_plugin(dir.path(), "@acme/plugin", "^1.0.0").unwrap();
         let m = read_manifest(dir.path()).unwrap();
         assert!(m.plugins.contains_key("@acme/plugin"));

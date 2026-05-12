@@ -35,7 +35,8 @@ async fn test_install_single_plugin() {
     let uepm_dir = dir.path().join("UEPMPlugins");
     std::fs::create_dir(&uepm_dir).unwrap();
 
-    std::fs::write(dir.path().join("uepm.ini"), "[plugins]\n").unwrap();
+    std::fs::create_dir(dir.path().join("Config")).unwrap();
+    std::fs::write(dir.path().join("Config/UEPM.ini"), "[plugins]\n").unwrap();
 
     let tarball = make_fake_tarball();
     let integrity = sha512_integrity(&tarball);

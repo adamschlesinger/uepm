@@ -38,8 +38,9 @@ mod tests {
         std::fs::create_dir(&uepm_dir).unwrap();
         std::fs::create_dir(uepm_dir.join("cool-plugin")).unwrap();
 
+        std::fs::create_dir(dir.path().join("Config")).unwrap();
         std::fs::write(
-            dir.path().join("uepm.ini"),
+            dir.path().join("Config/UEPM.ini"),
             "[plugins]\n@acme/cool-plugin = ^1.0.0\n",
         )
         .unwrap();
