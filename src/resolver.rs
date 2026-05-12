@@ -79,29 +79,8 @@ pub async fn resolve_and_install(
             },
         );
 
-        // Resolve transitive deps from the installed plugin's uepm.ini
         let plugin_dir = uepm_plugins_dir.join(plugin_dir_name(package));
-        if let Ok(plugin_manifest) = read_manifest(&plugin_dir) {
-            for (dep_pkg, dep_range) in &plugin_manifest.plugins {
-                Box::pin(resolve_and_install(
-                    dep_pkg,
-                    dep_range,
-                    project_dir,
-                    uepm_plugins_dir,
-                    lock,
-                    resolved,
-                    client,
-                    token,
-                ))
-                .await?;
-                lock.plugins
-                    .get_mut(package)
-                    .unwrap()
-                    .dependencies
-                    .insert(dep_pkg.clone(), dep_range.clone());
-            }
-        }
-
+        resolve_transitive_deps(package, &plugin_dir, project_dir, uepm_plugins_dir, lock, resolved, client, token).await?;
         return Ok(());
     }
 
@@ -133,10 +112,23 @@ pub async fn resolve_and_install(
     );
 
     let plugin_dir = uepm_plugins_dir.join(plugin_dir_name(package));
-    if let Ok(plugin_manifest) = read_manifest(&plugin_dir) {
-        for (dep_package, dep_range) in &plugin_manifest.plugins {
+    resolve_transitive_deps(package, &plugin_dir, project_dir, uepm_plugins_dir, lock, resolved, client, token).await
+}
+
+async fn resolve_transitive_deps(
+    package: &str,
+    plugin_dir: &Path,
+    project_dir: &Path,
+    uepm_plugins_dir: &Path,
+    lock: &mut LockFile,
+    resolved: &mut HashMap<String, String>,
+    client: &RegistryClient,
+    token: Option<&str>,
+) -> Result<(), UepmError> {
+    if let Ok(plugin_manifest) = read_manifest(plugin_dir) {
+        for (dep_pkg, dep_range) in &plugin_manifest.plugins {
             Box::pin(resolve_and_install(
-                dep_package,
+                dep_pkg,
                 dep_range,
                 project_dir,
                 uepm_plugins_dir,
@@ -146,15 +138,13 @@ pub async fn resolve_and_install(
                 token,
             ))
             .await?;
-
             lock.plugins
                 .get_mut(package)
                 .unwrap()
                 .dependencies
-                .insert(dep_package.clone(), dep_range.clone());
+                .insert(dep_pkg.clone(), dep_range.clone());
         }
     }
-
     Ok(())
 }
 
