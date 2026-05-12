@@ -1,5 +1,5 @@
 use crate::errors::UepmError;
-use crate::manifest::create_manifest;
+use crate::manifest::{create_manifest, read_manifest, write_manifest};
 use crate::uproject::{add_plugin_directory, find_uproject, get_engine_association, is_guid};
 use dialoguer::{theme::ColorfulTheme, Select};
 use std::path::Path;
@@ -93,7 +93,17 @@ pub async fn run_init_with_mode(project_dir: &Path, _mode: InstallMode) -> Resul
 
     add_plugin_directory(&uproject_path, "UEPMPlugins")?;
 
-    create_manifest(project_dir, engine_version)?;
+    // Create uepm.ini if missing; if it already exists, only update engine_version
+    let uepm_ini = project_dir.join("uepm.ini");
+    if uepm_ini.exists() {
+        if let Some(ver) = engine_version {
+            let mut manifest = read_manifest(project_dir)?;
+            manifest.engine_version = Some(ver.to_string());
+            write_manifest(project_dir, &manifest)?;
+        }
+    } else {
+        create_manifest(project_dir, engine_version)?;
+    }
 
     let uepm_plugins = project_dir.join("UEPMPlugins");
     if !uepm_plugins.exists() {
@@ -155,6 +165,26 @@ mod tests {
         assert!(content.contains("UEPMPlugins"));
 
         assert!(dir.path().join("UEPMPlugins").is_dir());
+    }
+
+    #[tokio::test]
+    async fn test_init_preserves_existing_plugins() {
+        let dir = tempdir().unwrap();
+        write_uproject(dir.path(), "5.7");
+        // Pre-populate uepm.ini with plugins
+        std::fs::write(
+            dir.path().join("uepm.ini"),
+            "[plugins]\n@acme/existing = ^1.0.0\n",
+        )
+        .unwrap();
+
+        run_init_with_mode(dir.path(), InstallMode::Symlink)
+            .await
+            .unwrap();
+
+        let m = crate::manifest::read_manifest(dir.path()).unwrap();
+        assert!(m.plugins.contains_key("@acme/existing"), "init wiped existing plugins");
+        assert_eq!(m.engine_version.as_deref(), Some("5.7"));
     }
 
     #[tokio::test]
