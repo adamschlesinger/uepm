@@ -25,4 +25,12 @@ impl UEPMContext {
         let token = std::env::var("UEPM_TOKEN").ok();
         Self { project_dir, uepm_plugins_dir, registry, token }
     }
+
+    /// Build context with explicit registry URL and token — no env var reads.
+    /// Use this in integration tests to avoid races between parallel test threads.
+    pub fn for_test(project_dir: PathBuf, registry_url: &str, token: Option<String>) -> Self {
+        let uepm_plugins_dir = project_dir.join("UEPMPlugins");
+        let registry = RegistryClient::new(registry_url, token.clone());
+        Self { project_dir, uepm_plugins_dir, registry, token }
+    }
 }

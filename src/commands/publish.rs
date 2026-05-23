@@ -7,6 +7,7 @@ use dialoguer::{theme::ColorfulTheme, Confirm, Input};
 use semver::{Version, VersionReq};
 use sha1::{Digest as _, Sha1};
 use sha2::{Digest as _, Sha512};
+use std::path::Path;
 
 pub async fn run(
     ctx: &UEPMContext,
@@ -17,7 +18,7 @@ pub async fn run(
 ) -> Result<(), UepmError> {
     // ── Step 1: load and validate [Package] ───────────────────────────────────
     let meta = read_package_metadata(&ctx.project_dir)?;
-    validate_metadata(&meta)?;
+    validate_metadata(&meta, &ctx.project_dir)?;
 
     // ── Step 2: show summary + confirm ────────────────────────────────────────
     let registry = ctx
@@ -110,7 +111,7 @@ pub async fn run(
 
 // ── Validation ────────────────────────────────────────────────────────────────
 
-fn validate_metadata(meta: &PackageMetadata) -> Result<(), UepmError> {
+pub(crate) fn validate_metadata(meta: &PackageMetadata, project_dir: &Path) -> Result<(), UepmError> {
     macro_rules! require_nonempty {
         ($field:expr, $name:expr) => {
             if $field.trim().is_empty() {
@@ -148,6 +149,14 @@ fn validate_metadata(meta: &PackageMetadata) -> Result<(), UepmError> {
         return Err(UepmError::InvalidPackageField {
             field: "engine_range".to_string(),
             message: format!("'{}' is not a valid semver range", meta.engine_range),
+        });
+    }
+
+    // main file must exist on disk
+    if !project_dir.join(&meta.main).exists() {
+        return Err(UepmError::InvalidPackageField {
+            field: "main".to_string(),
+            message: format!("'{}' does not exist in the plugin directory", meta.main),
         });
     }
 
@@ -216,7 +225,7 @@ async fn upload(
     name: &str,
     body: &[u8],
     token: &str,
-    tag: &str,
+    _tag: &str,
 ) -> Result<(), UepmError> {
     let url = format!("{}/{}", registry.trim_end_matches('/'), urlencoding::encode(name));
 
@@ -290,6 +299,7 @@ async fn handle_response(res: reqwest::Response) -> Result<(), UepmError> {
 mod tests {
     use super::*;
     use crate::manifest::PackageMetadata;
+    use tempfile::tempdir;
 
     fn valid_meta() -> PackageMetadata {
         PackageMetadata {
@@ -303,47 +313,67 @@ mod tests {
         }
     }
 
+    fn dir_with_uplugin() -> tempfile::TempDir {
+        let dir = tempdir().unwrap();
+        std::fs::write(dir.path().join("MyPlugin.uplugin"), b"{}").unwrap();
+        dir
+    }
+
     #[test]
     fn test_validate_valid_metadata() {
-        assert!(validate_metadata(&valid_meta()).is_ok());
+        let dir = dir_with_uplugin();
+        assert!(validate_metadata(&valid_meta(), dir.path()).is_ok());
+    }
+
+    #[test]
+    fn test_validate_rejects_missing_main_file() {
+        let dir = tempdir().unwrap(); // no .uplugin written
+        assert!(matches!(
+            validate_metadata(&valid_meta(), dir.path()),
+            Err(UepmError::InvalidPackageField { field, .. }) if field == "main"
+        ));
     }
 
     #[test]
     fn test_validate_rejects_empty_name() {
+        let dir = dir_with_uplugin();
         let mut m = valid_meta();
         m.name = "".to_string();
         assert!(matches!(
-            validate_metadata(&m),
+            validate_metadata(&m, dir.path()),
             Err(UepmError::InvalidPackageField { field, .. }) if field == "name"
         ));
     }
 
     #[test]
     fn test_validate_rejects_unscoped_name() {
+        let dir = dir_with_uplugin();
         let mut m = valid_meta();
         m.name = "my-plugin".to_string();
         assert!(matches!(
-            validate_metadata(&m),
+            validate_metadata(&m, dir.path()),
             Err(UepmError::InvalidPackageField { field, .. }) if field == "name"
         ));
     }
 
     #[test]
     fn test_validate_rejects_invalid_semver() {
+        let dir = dir_with_uplugin();
         let mut m = valid_meta();
         m.version = "not-semver".to_string();
         assert!(matches!(
-            validate_metadata(&m),
+            validate_metadata(&m, dir.path()),
             Err(UepmError::InvalidPackageField { field, .. }) if field == "version"
         ));
     }
 
     #[test]
     fn test_validate_rejects_invalid_engine_range() {
+        let dir = dir_with_uplugin();
         let mut m = valid_meta();
         m.engine_range = "bad range!!".to_string();
         assert!(matches!(
-            validate_metadata(&m),
+            validate_metadata(&m, dir.path()),
             Err(UepmError::InvalidPackageField { field, .. }) if field == "engine_range"
         ));
     }
