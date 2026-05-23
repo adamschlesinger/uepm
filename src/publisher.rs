@@ -70,8 +70,9 @@ fn is_excluded_dir(name: &str) -> bool {
 
 /// Always excluded files / patterns.
 fn is_excluded_file(name: &str) -> bool {
+    // Note: Config/UEPM.ini is intentionally included — consumers need the
+    // [Plugins] section to resolve transitive dependencies after extraction.
     name.ends_with(".lock")
-        || name == "UEPM.ini"
         || name.starts_with(".npmrc")
         || name.starts_with(".env")
 }
@@ -238,7 +239,6 @@ mod tests {
             dir.path(),
             &[
                 "MyPlugin.uplugin",
-                "Config/UEPM.ini",
                 "uepm.lock",
                 ".npmrc",
                 ".env",
@@ -247,10 +247,29 @@ mod tests {
         let tgz = build_tarball(dir.path(), b"{}").unwrap();
         let entries = tarball_entries(&tgz);
 
-        assert!(!entries.iter().any(|e| e.contains("UEPM.ini")));
         assert!(!entries.iter().any(|e| e.contains(".lock")));
         assert!(!entries.iter().any(|e| e.contains(".npmrc")));
         assert!(!entries.iter().any(|e| e.contains(".env")));
+    }
+
+    #[test]
+    fn test_uepm_ini_included_for_transitive_dep_resolution() {
+        // Config/UEPM.ini must be packed so consumers can read [Plugins]
+        // and install transitive dependencies after extraction.
+        let dir = tempdir().unwrap();
+        create_tree(
+            dir.path(),
+            &[
+                "MyPlugin.uplugin",
+                "Config/UEPM.ini",
+            ],
+        );
+        let tgz = build_tarball(dir.path(), b"{}").unwrap();
+        let entries = tarball_entries(&tgz);
+        assert!(
+            entries.iter().any(|e| e.contains("UEPM.ini")),
+            "Config/UEPM.ini must be included in tarball for transitive dep resolution"
+        );
     }
 
     #[test]
