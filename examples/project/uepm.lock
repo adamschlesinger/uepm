@@ -2,15 +2,9 @@
   "version": 1,
   "plugins": {
     "@uepm/dependency-plugin": {
-      "resolved": "1.0.1",
-      "tarball": "file:../plugins/dependency-plugin",
-      "sha512": "",
-      "dependencies": {}
-    },
-    "@uepm/example-plugin": {
-      "resolved": "1.0.1",
-      "tarball": "file:../plugins/example-plugin",
-      "sha512": "",
+      "resolved": "2.0.0",
+      "tarball": "https://registry.npmjs.org/@uepm/dependency-plugin/-/dependency-plugin-2.0.0.tgz",
+      "sha512": "sha512-VU918d2/q4MXha20l2wcALOd5daKau/SnTuAAIol9RE4qNcj850Q0A9VIyyjdaC06PexAzQRSrYWLTymCgHw2Q==",
       "dependencies": {}
     }
   }
