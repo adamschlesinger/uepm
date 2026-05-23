@@ -7,4 +7,5 @@ pub mod manifest;
 pub mod output;
 pub mod registry;
 pub mod resolver;
+pub mod ue_install;
 pub mod uproject;
