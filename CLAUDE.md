@@ -26,7 +26,7 @@ UEPM is a standalone Rust binary that manages Unreal Engine plugins via the npm 
 
 | Module | Purpose |
 |---|---|
-| `manifest` | Read/write `Config/UEPM.ini` via `toml` + serde. `[Settings]` + `[Plugins]` sections. |
+| `manifest` | Read/write `Config/UEPM.ini` via `toml` + serde. `[Settings]`, `[Package]`, `[Plugins]` sections. `PackageMetadata` struct + helpers. |
 | `lockfile` | Read/write `uepm.lock` (JSON). Reproducible installs via locked tarballs. |
 | `uproject` | Find, read, and modify `.uproject` JSON (plugin directory injection). |
 | `registry` | `RegistryClient` — fetch npm package metadata, semver range resolution. |
@@ -34,11 +34,14 @@ UEPM is a standalone Rust binary that manages Unreal Engine plugins via the npm 
 | `resolver` | Recursive install with conflict detection. Reads plugin's own `Config/UEPM.ini` for transitive deps. |
 | `output` | crossterm-colored `print_success` / `print_warn` / `print_error` / `print_info`. |
 | `errors` | `UepmError` enum (thiserror derives). |
-| `commands/init` | VCS detection (`P4PORT`, `.p4config`, `.git`), `commit_plugins` confirm prompt, writes `.gitignore`/`.p4ignore`. |
+| `ue_install` | `find_installed_engines()` — scans Epic `LauncherInstalled.dat` (macOS/Linux) and Windows registry (cfg-gated) for installed UE builds. |
+| `publisher` | Tarball builder: `build_tarball(dir, pkg_json_bytes)` → raw `.tgz` bytes. `list_files(dir)` for dry-run. |
+| `commands/init` | Routes to plugin-context init (`.uplugin` found) or project-context init (`.uproject` found). Plugin path: `find_uplugin`, `run_plugin_init`. VCS detection + ignore file writes. |
 | `commands/install` | Parse `@scope/pkg@ver` specs, resolve+install, update `Config/UEPM.ini` + `uepm.lock`. |
 | `commands/uninstall` | Remove `UEPMPlugins/<name>/`, update `Config/UEPM.ini`. |
 | `commands/update` | Re-resolve all/one plugin ignoring lockfile, rewrite `uepm.lock`. |
 | `commands/list` | Read manifest + lockfile, print compatibility status. |
+| `commands/publish` | Validate `[Package]`, build `.tgz` in memory, compute SHA1+SHA512, PUT to registry. OTP retry on 401. |
 
 ### Key files
 

@@ -1,16 +1,15 @@
 # Roadmap
 
-## Phase 2 — Plugin Authoring
+## Phase 2 — Plugin Authoring ✅
 
-- [ ] `uepm init` (plugin context) — when run in a directory containing a `.uplugin` file, prompts for package metadata (name, version, description, author, license, engine range) with defaults derived from `.uplugin` fields, and writes a `[Package]` section to `Config/UEPM.ini`
-- [ ] `[Package]` section in `Config/UEPM.ini` — plugin authors declare distribution metadata alongside their `[Plugins]` dependencies
-- [ ] `uepm publish` — validate `[Package]` fields, verify files on disk, generate ephemeral `package.json`, run `npm publish`, delete `package.json` on success or failure
-- [ ] Engine version detection — locate installed UE builds to pre-fill `EngineVersion` during `uepm init`
+- [x] `[Package]` section in `Config/UEPM.ini` — plugin authors declare distribution metadata alongside their `[Plugins]` dependencies
+- [x] `uepm init` (plugin context) — detects `.uplugin`, derives defaults from `FriendlyName`/`VersionName`/`Description`/`CreatedBy`, prompts for metadata, writes `[Package]` section
+- [x] Engine version detection — scans Epic `LauncherInstalled.dat` (macOS/Linux) to pre-fill engine range during `uepm init`
+- [x] `uepm publish` — validates `[Package]`, builds `.tgz` in memory, PUTs directly to registry API; no Node.js or npm required
 
 ## Phase 3 — Ecosystem
 
 - [ ] `uepm new` — scaffold a new plugin from scratch with `.uplugin`, `Source/`, and `Config/UEPM.ini`
-- [ ] Direct registry API for publish — replace `npm publish` subprocess with direct HTTP calls so `uepm publish` requires no Node.js/npm prerequisite
 - [ ] Plugin search — `uepm search <term>` queries the registry for packages with the `uepm` keyword
 - [ ] Website listing — curated page showing UEPM-compatible plugins filterable by engine version
 - [ ] Package manager distribution — Homebrew tap, Chocolatey package, Scoop manifest

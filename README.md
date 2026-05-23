@@ -18,21 +18,30 @@ Or grab a binary directly from [Releases](https://github.com/bad-planning/uepm/r
 
 ## Quick Start
 
+**Plugin consumer:**
 ```sh
 cd YourUnrealProject    # directory containing a .uproject file
 uepm init               # creates Config/UEPM.ini, UEPMPlugins/, modifies .uproject
 uepm install @acme/cool-plugin
 ```
 
+**Plugin author:**
+```sh
+cd YourPlugin           # directory containing a .uplugin file
+uepm init               # detects .uplugin, prompts for package metadata, writes [Package]
+uepm publish            # builds .tgz, PUTs to registry — no npm required
+```
+
 ## Commands
 
 | Command | Description |
 |---|---|
-| `uepm init [--yes]` | Initialize a project. Detects VCS, prompts whether to commit `UEPMPlugins/`. `--yes` accepts defaults. |
+| `uepm init [--yes]` | **Project context** (`.uproject` present): creates `Config/UEPM.ini`, `UEPMPlugins/`, modifies `.uproject`. **Plugin context** (`.uplugin` present): prompts for publish metadata and writes `[Package]` section. |
 | `uepm install [@scope/pkg[@ver] ...]` | Install plugins. No args installs everything in `Config/UEPM.ini`. |
 | `uepm uninstall @scope/pkg` | Remove a plugin and update `Config/UEPM.ini`. |
 | `uepm update [@scope/pkg]` | Update one or all plugins to latest compatible versions. |
 | `uepm list` | Show installed plugins and engine compatibility status. |
+| `uepm publish [--tag TAG] [--dry-run] [--yes] [--access public\|restricted]` | Publish this plugin to the registry. Reads `[Package]` from `Config/UEPM.ini`. Requires `UEPM_TOKEN`. |
 
 ## Project files
 
@@ -67,28 +76,34 @@ Set to `true` to check the installed plugins into version control (recommended f
 
 ## Publishing plugins
 
-Plugins are standard npm packages with UEPM metadata. Publish with any npm-compatible registry.
+Run `uepm init` in your plugin directory to write a `[Package]` section:
 
-**Minimum `package.json`:**
-```json
-{
-  "name": "@your-scope/plugin-name",
-  "version": "1.0.0",
-  "main": "YourPlugin.uplugin",
-  "unreal": {
-    "engineVersion": ">=5.0.0 <6.0.0",
-    "pluginName": "YourPlugin"
-  },
-  "files": ["YourPlugin.uplugin", "Source/**/*", "Content/**/*", "Resources/**/*"],
-  "keywords": ["unreal", "unreal-engine", "plugin", "uepm"]
-}
+```toml
+# Config/UEPM.ini (inside the plugin source tree)
+[Package]
+Name        = "@your-scope/plugin-name"
+Version     = "1.0.0"
+Description = "Does cool things"
+Author      = "Your Studio"
+License     = "MIT"
+EngineRange = ">=5.3.0, <6.0.0"
+Main        = "YourPlugin.uplugin"
+
+[Plugins]
+# transitive deps go here
 ```
+
+Then publish — no Node.js or npm required:
 
 ```sh
-npm publish --access public
+export UEPM_TOKEN=<your-npm-token>
+uepm publish                  # interactive confirm + upload
+uepm publish --dry-run        # validate and list files without uploading
+uepm publish --tag beta       # publish under a non-default dist-tag
 ```
 
-Plugin authoring tooling (`uepm publish`, `uepm new`) is planned for Phase 2.
+`uepm publish` builds the `.tgz` tarball in memory, computes SHA-512 integrity,
+and PUTs directly to the registry API. `package.json` is never written to disk.
 
 ## Plugin dependencies
 
