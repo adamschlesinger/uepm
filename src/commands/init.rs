@@ -47,13 +47,13 @@ fn slugify(s: &str) -> String {
 }
 
 /// Build a default engine semver range from a version string like `"5.7.4"`.
-/// Produces `">=5.7.0 <6.0.0"`.
+/// Produces `">=5.7.0, <6.0.0"`.
 fn engine_range_from_version(v: &str) -> String {
     let parts: Vec<&str> = v.splitn(3, '.').collect();
     let major: u64 = parts.first().and_then(|s| s.parse().ok()).unwrap_or(5);
-    let minor: &str = parts.get(1).unwrap_or(&"0");
-    format!(">={}  , <{}.0.0", format!("{major}.{minor}.0"), major + 1)
-        .replace("  ", "")
+    let minor = parts.get(1).copied().unwrap_or("0");
+    format!(">={}  <{}.0.0", format_args!("{major}.{minor}.0"), major + 1)
+        .replacen("  ", ", ", 1)
 }
 
 /// Read fields from a `.uplugin` JSON file. Missing keys return empty strings.
@@ -125,17 +125,15 @@ pub async fn run_plugin_init(
     // Warn if [Package] already exists
     if manifest_exists(plugin_dir) {
         if let Ok(m) = read_manifest(plugin_dir) {
-            if m.package.is_some() {
-                if !yes {
-                    let overwrite = Confirm::with_theme(&ColorfulTheme::default())
-                        .with_prompt("[Package] section already exists. Overwrite?")
-                        .default(false)
-                        .interact()
-                        .map_err(|e| UepmError::Io(std::io::Error::other(e.to_string())))?;
-                    if !overwrite {
-                        crate::output::print_info("Aborted — [Package] section unchanged");
-                        return Ok(());
-                    }
+            if m.package.is_some() && !yes {
+                let overwrite = Confirm::with_theme(&ColorfulTheme::default())
+                    .with_prompt("[Package] section already exists. Overwrite?")
+                    .default(false)
+                    .interact()
+                    .map_err(|e| UepmError::Io(std::io::Error::other(e.to_string())))?;
+                if !overwrite {
+                    crate::output::print_info("Aborted — [Package] section unchanged");
+                    return Ok(());
                 }
             }
         }
@@ -255,12 +253,12 @@ pub async fn run_init_with_commit(project_dir: &Path, commit_plugins: bool) -> R
     add_plugin_directory(&uproject_path, "UEPMPlugins")?;
 
     if manifest_exists(project_dir) {
+        let mut manifest = read_manifest(project_dir)?;
         if let Some(ver) = engine_version {
-            let mut manifest = read_manifest(project_dir)?;
             manifest.engine_version = Some(ver.to_string());
-            manifest.commit_plugins = commit_plugins;
-            write_manifest(project_dir, &manifest)?;
         }
+        manifest.commit_plugins = commit_plugins;
+        write_manifest(project_dir, &manifest)?;
     } else {
         create_manifest(project_dir, engine_version, commit_plugins)?;
     }
@@ -490,6 +488,22 @@ mod tests {
         let ctx = UEPMContext::with_dir(dir.path().to_path_buf());
         run(&ctx, true).await.unwrap();
         assert!(crate::manifest::read_package_metadata(dir.path()).is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_init_updates_commit_plugins_for_guid_engine() {
+        // Regression: commit_plugins was silently dropped when engine is a GUID
+        // and the manifest already exists.
+        let dir = tempdir().unwrap();
+        write_uproject(dir.path(), "{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}");
+        // Pre-create manifest with commit_plugins=false
+        crate::manifest::create_manifest(dir.path(), None, false).unwrap();
+
+        run_init_with_commit(dir.path(), true).await.unwrap();
+
+        let m = crate::manifest::read_manifest(dir.path()).unwrap();
+        assert!(m.commit_plugins, "commit_plugins should be updated even for GUID engines");
+        assert!(m.engine_version.is_none(), "engine_version should remain None for GUIDs");
     }
 
     #[tokio::test]

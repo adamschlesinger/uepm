@@ -54,17 +54,20 @@ fn scan_launcher_dat(out: &mut Vec<UeInstall>) {
         Some(p) if p.exists() => p,
         _ => return,
     };
-
     let content = match std::fs::read_to_string(&path) {
         Ok(c) => c,
         Err(_) => return,
     };
-
     let json: serde_json::Value = match serde_json::from_str(&content) {
         Ok(v) => v,
         Err(_) => return,
     };
+    parse_installation_list(&json, out);
+}
 
+/// Parse a `LauncherInstalled.dat` JSON value into `UeInstall` entries.
+/// Extracted so tests can call this directly instead of duplicating the logic.
+pub(crate) fn parse_installation_list(json: &serde_json::Value, out: &mut Vec<UeInstall>) {
     let list = match json.get("InstallationList").and_then(|v| v.as_array()) {
         Some(l) => l,
         None => return,
@@ -87,24 +90,18 @@ fn scan_launcher_dat(out: &mut Vec<UeInstall>) {
 
         // AppVersion looks like "5.7.4-51494982+++UE5+Release-5.7-Mac"
         // Take everything before the first '-' as the clean version.
-        let app_version = entry
+        let version = entry
             .get("AppVersion")
             .and_then(|v| v.as_str())
-            .unwrap_or("");
-        let version = app_version
+            .unwrap_or("")
             .split('-')
             .next()
             .unwrap_or("")
             .to_string();
 
-        if version.is_empty() {
-            continue;
+        if !version.is_empty() {
+            out.push(UeInstall { version, path: location });
         }
-
-        out.push(UeInstall {
-            version,
-            path: location,
-        });
     }
 }
 
@@ -171,22 +168,9 @@ mod tests {
     }
 
     fn parse_dat(json: &str) -> Vec<UeInstall> {
-        // Exercise the same logic as scan_launcher_dat without touching the filesystem.
-        let mut out = Vec::new();
         let value: serde_json::Value = serde_json::from_str(json).unwrap();
-        let list = value["InstallationList"].as_array().unwrap();
-        for entry in list {
-            let app_name = entry["AppName"].as_str().unwrap_or("");
-            if !app_name.starts_with("UE_") {
-                continue;
-            }
-            let location = PathBuf::from(entry["InstallLocation"].as_str().unwrap_or(""));
-            let app_version = entry["AppVersion"].as_str().unwrap_or("");
-            let version = app_version.split('-').next().unwrap_or("").to_string();
-            if !version.is_empty() {
-                out.push(UeInstall { version, path: location });
-            }
-        }
+        let mut out = Vec::new();
+        parse_installation_list(&value, &mut out);
         out.sort_by(|a, b| version_cmp(&a.version, &b.version));
         out
     }

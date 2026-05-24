@@ -15,7 +15,7 @@ pub struct PackageMetadata {
     pub author: String,
     /// SPDX license identifier, e.g. `MIT`
     pub license: String,
-    /// SemVer range of compatible Unreal Engine versions, e.g. `>=5.3.0 <6.0.0`
+    /// SemVer range of compatible Unreal Engine versions, e.g. `>=5.3.0, <6.0.0`
     pub engine_range: String,
     /// `.uplugin` filename, e.g. `MyPlugin.uplugin`
     pub main: String,
@@ -263,7 +263,7 @@ CommitPlugins = false
             description: "Does cool things".to_string(),
             author: "ACME Studio".to_string(),
             license: "MIT".to_string(),
-            engine_range: ">=5.3.0 <6.0.0".to_string(),
+            engine_range: ">=5.3.0, <6.0.0".to_string(),
             main: "MyPlugin.uplugin".to_string(),
         }
     }
@@ -281,7 +281,7 @@ CommitPlugins = false
         assert_eq!(got.description, "Does cool things");
         assert_eq!(got.author, "ACME Studio");
         assert_eq!(got.license, "MIT");
-        assert_eq!(got.engine_range, ">=5.3.0 <6.0.0");
+        assert_eq!(got.engine_range, ">=5.3.0, <6.0.0");
         assert_eq!(got.main, "MyPlugin.uplugin");
     }
 

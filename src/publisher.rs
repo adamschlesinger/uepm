@@ -35,8 +35,8 @@ pub fn build_tarball(plugin_dir: &Path, package_json: &[u8]) -> Result<Vec<u8>, 
             append_file(&mut tar, &abs, &tar_path)?;
         }
 
-        let gz = tar.into_inner().map_err(|e| UepmError::Io(e))?;
-        gz.finish().map_err(|e| UepmError::Io(e))?;
+        let gz = tar.into_inner().map_err(UepmError::Io)?;
+        gz.finish().map_err(UepmError::Io)?;
     }
 
     Ok(buf)
@@ -93,20 +93,26 @@ fn walk(root: &Path, dir: &Path, out: &mut Vec<PathBuf>) -> Result<(), UepmError
         let name = entry.file_name();
         let name_str = name.to_string_lossy();
 
-        if path.is_dir() {
+        // Use symlink_metadata so we don't follow symlinks — the tar builder
+        // has follow_symlinks(false), so the walk must match that behaviour.
+        let metadata = match entry.metadata() {
+            Ok(m) => m,
+            Err(_) => continue,
+        };
+        if metadata.is_dir() {
             if !is_excluded_dir(&name_str) {
                 walk(root, &path, out)?;
             }
-        } else if path.is_file() {
+        } else if metadata.is_file() {
             let rel = path.strip_prefix(root).unwrap_or(&path).to_path_buf();
             let filename = rel
                 .file_name()
                 .map(|s| s.to_string_lossy().to_string())
                 .unwrap_or_default();
 
-            if is_always_included(&filename) {
-                out.push(rel);
-            } else if !is_excluded_file(&filename) && !name_str.starts_with('.') {
+            if is_always_included(&filename)
+                || (!is_excluded_file(&filename) && !name_str.starts_with('.'))
+            {
                 out.push(rel);
             }
         }

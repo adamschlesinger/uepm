@@ -135,7 +135,7 @@ async fn resolve_transitive_deps(
             ctx.lock
                 .plugins
                 .get_mut(package)
-                .unwrap()
+                .expect("package entry was just inserted")
                 .dependencies
                 .insert(dep_pkg.clone(), dep_range.clone());
         }

@@ -96,7 +96,7 @@ impl RegistryClient {
     ) -> Result<PackageMetadata, UepmError> {
         let npm_pkg = self.fetch_package(package).await?;
         let versions: Vec<String> = npm_pkg.versions.keys().cloned().collect();
-        let best = resolve_best_version(&versions, range)?;
+        let best = resolve_best_version(&versions, range, package)?;
         Ok(npm_pkg.versions[&best].to_metadata())
     }
 }
@@ -112,7 +112,7 @@ impl NpmVersion {
 }
 
 /// Return the highest version string from `versions` that satisfies `range`.
-pub fn resolve_best_version(versions: &[String], range: &str) -> Result<String, UepmError> {
+pub fn resolve_best_version(versions: &[String], range: &str, package: &str) -> Result<String, UepmError> {
     let req = semver::VersionReq::parse(range).map_err(|e| UepmError::InvalidSemver {
         range: range.to_string(),
         message: e.to_string(),
@@ -125,7 +125,7 @@ pub fn resolve_best_version(versions: &[String], range: &str) -> Result<String, 
         .max()
         .map(|v| v.to_string())
         .ok_or_else(|| UepmError::NoMatchingVersion {
-            package: String::new(),
+            package: package.to_string(),
             range: range.to_string(),
         })
 }
@@ -191,14 +191,15 @@ mod tests {
     #[test]
     fn test_resolve_best_version() {
         let versions = vec!["1.0.0".to_string(), "1.0.3".to_string(), "2.0.0".to_string()];
-        let best = resolve_best_version(&versions, "^1.0.0").unwrap();
+        let best = resolve_best_version(&versions, "^1.0.0", "@acme/pkg").unwrap();
         assert_eq!(best, "1.0.3");
     }
 
     #[test]
     fn test_resolve_no_match() {
         let versions = vec!["2.0.0".to_string()];
-        let result = resolve_best_version(&versions, "^1.0.0");
-        assert!(result.is_err());
+        let result = resolve_best_version(&versions, "^1.0.0", "@acme/pkg");
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("@acme/pkg"), "error should name the package: {err}");
     }
 }

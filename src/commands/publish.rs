@@ -165,6 +165,7 @@ pub(crate) fn validate_metadata(meta: &PackageMetadata, project_dir: &Path) -> R
 
 // ── Request body ─────────────────────────────────────────────────────────────
 
+#[allow(clippy::too_many_arguments)]
 fn build_publish_body(
     meta: &PackageMetadata,
     pkg_json: &serde_json::Value,
@@ -178,8 +179,8 @@ fn build_publish_body(
     // Tarball filename uses unscoped name: "@acme/my-plugin" → "my-plugin"
     let unscoped = meta
         .name
-        .split('/')
-        .last()
+        .rsplit('/')
+        .next()
         .unwrap_or(&meta.name);
     let tarball_filename = format!("{}-{}.tgz", unscoped, meta.version);
 
