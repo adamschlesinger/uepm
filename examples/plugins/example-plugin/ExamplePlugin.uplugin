@@ -1,7 +1,7 @@
 {
   "FileVersion": 3,
   "Version": 1,
-  "VersionName": "2.0.0",
+  "VersionName": "2.0.2",
   "FriendlyName": "Example Plugin",
   "Description": "An example Unreal Engine plugin demonstrating NPM distribution pattern",
   "Category": "Other",
