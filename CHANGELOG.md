@@ -18,14 +18,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- `uepm init` plugin context: detects `.uplugin` files and prompts for package
+- `uepm init` plugin context: detects `.uplugin` files and prompts for plugin
   metadata (name, version, description, author, license, engine range, main)
   with defaults derived from `.uplugin` fields (`FriendlyName`, `VersionName`,
   `CreatedBy`, `Description`)
-- `[Package]` section in `Config/UEPM.ini` — plugin authors declare distribution
-  metadata alongside `[Plugins]` dependencies; project manifests without a
-  `[Package]` section are unaffected
-- `uepm publish` — validates `[Package]`, builds a `.tgz` tarball in memory,
+- `[Plugin]` section in `Config/UEPM.ini` — plugin authors declare distribution
+  metadata alongside `[Dependencies]`; project manifests without a
+  `[Plugin]` section are unaffected
+- `uepm publish` — validates `[Plugin]`, builds a `.tgz` tarball in memory,
   computes SHA-512 integrity + SHA-1 shasum, and PUTs directly to the npm registry
   API. No Node.js or npm required. Supports `--dry-run`, `--tag`, `--access`,
   OTP prompting on 401, and `UEPM_TOKEN` for authentication
@@ -43,7 +43,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Transitive dependencies are now correctly installed and recorded in `uepm.lock`
-  when a registry package declares its own `[Plugins]` dependencies
+  when a registry package declares its own `[Dependencies]`
 - `NoMatchingVersion` error now correctly names the package in the message
 - `commit_plugins` is now always persisted on re-init, even when the engine
   association is a launcher GUID
