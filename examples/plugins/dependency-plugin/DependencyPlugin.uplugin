@@ -1,7 +1,7 @@
 {
   "FileVersion": 3,
   "Version": 1,
-  "VersionName": "2.0.3",
+  "VersionName": "2.0.4",
   "FriendlyName": "Dependency Plugin",
   "Description": "A plugin demonstrating dependencies on other NPM-distributed plugins",
   "Category": "Other",
