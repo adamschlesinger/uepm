@@ -2,10 +2,10 @@
 
 ## Phase 2 — Plugin Authoring ✅
 
-- [x] `[Package]` section in `Config/UEPM.ini` — plugin authors declare distribution metadata alongside their `[Plugins]` dependencies
-- [x] `uepm init` (plugin context) — detects `.uplugin`, derives defaults from `FriendlyName`/`VersionName`/`Description`/`CreatedBy`, prompts for metadata, writes `[Package]` section
+- [x] `[Plugin]` section in `Config/UEPM.ini` — plugin authors declare distribution metadata alongside their `[Dependencies]`
+- [x] `uepm init` (plugin context) — detects `.uplugin`, derives defaults from `FriendlyName`/`VersionName`/`Description`/`CreatedBy`, prompts for metadata, writes `[Plugin]` section
 - [x] Engine version detection — scans Epic `LauncherInstalled.dat` (macOS/Linux) to pre-fill engine range during `uepm init`
-- [x] `uepm publish` — validates `[Package]`, builds `.tgz` in memory, PUTs directly to registry API; no Node.js or npm required
+- [x] `uepm publish` — validates `[Plugin]`, builds `.tgz` in memory, PUTs directly to registry API; no Node.js or npm required
 
 ## Phase 3 — Ecosystem
 
