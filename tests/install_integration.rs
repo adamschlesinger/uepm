@@ -65,12 +65,10 @@ async fn test_install_single_plugin() {
         .create_async()
         .await;
 
-    std::env::set_var("UEPM_REGISTRY", server.url());
-    let ctx = UEPMContext::with_dir(dir.path().to_path_buf());
+    let ctx = UEPMContext::for_test(dir.path().to_path_buf(), &server.url(), None);
     uepm::commands::install::run_install(&ctx, &["@acme/cool-plugin".to_string()])
         .await
         .unwrap();
-    std::env::remove_var("UEPM_REGISTRY");
 
     assert!(ctx.uepm_plugins_dir.join("cool-plugin").join("CoolPlugin.uplugin").exists());
 
