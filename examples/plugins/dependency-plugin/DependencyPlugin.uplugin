@@ -1,0 +1,30 @@
+{
+  "FileVersion": 3,
+  "Version": 1,
+  "VersionName": "2.0.4",
+  "FriendlyName": "Dependency Plugin",
+  "Description": "A plugin demonstrating dependencies on other NPM-distributed plugins",
+  "Category": "Other",
+  "CreatedBy": "UEPM",
+  "CreatedByURL": "https://github.com/adamschlesinger/uepm",
+  "DocsURL": "",
+  "MarketplaceURL": "",
+  "SupportURL": "",
+  "CanContainContent": false,
+  "IsBetaVersion": false,
+  "IsExperimentalVersion": false,
+  "Installed": false,
+  "Modules": [
+    {
+      "Name": "DependencyPlugin",
+      "Type": "Runtime",
+      "LoadingPhase": "Default"
+    }
+  ],
+  "Plugins": [
+    {
+      "Name": "ExamplePlugin",
+      "Enabled": true
+    }
+  ]
+}

@@ -1,489 +1,143 @@
-# UEPM - Unreal Engine Plugin Manager
+# UEPM — Unreal Engine Plugin Manager
 
-A modern plugin management system that brings the NPM ecosystem to Unreal Engine plugin development. UEPM allows you to distribute, install, and manage Unreal Engine plugins using familiar NPM workflows.
+A standalone CLI for managing Unreal Engine plugins via the npm registry. No Node.js required.
 
-## Features
+## Install
 
-- **🚀 One-command setup**: Initialize any Unreal project with `npx @uepm/init`
-- **📦 NPM distribution**: Publish and install plugins using standard NPM commands
-- **🔍 Automatic validation**: Engine compatibility checking on every install
-- **🔗 Dependency management**: Plugins can depend on other plugins with automatic resolution
-- **🩹 Patch support**: Full compatibility with [patch-package](https://github.com/ds300/patch-package) for modifications to managed plugins
-- **⚡ Lightweight**: Only download what you need - init runs once via npx
+**macOS / Linux**
+```sh
+curl -fsSL https://github.com/adamschlesinger/uepm/releases/latest/download/install.sh | sh
+```
+
+**Windows (PowerShell)**
+```powershell
+irm https://github.com/adamschlesinger/uepm/releases/latest/download/install.ps1 | iex
+```
+
+Or grab a binary directly from [Releases](https://github.com/adamschlesinger/uepm/releases).
 
 ## Quick Start
 
-### 1. Initialize your Unreal project (one-time setup)
-
-Navigate to your Unreal Engine project directory and run:
-
-```bash
-cd YourUnrealProject
-npx @uepm/init
+**Plugin consumer:**
+```sh
+cd YourUnrealProject    # directory containing a .uproject file
+uepm init               # creates Config/UEPM.ini, UEPMPlugins/, modifies .uproject
+uepm install @acme/cool-plugin
 ```
 
-This will:
-- Add `node_modules` to your project's plugin search paths
-- Create or update `package.json` with UEPM configuration
-- Install validation hooks for compatibility checking
-
-### 2. Install plugins from NPM
-
-```bash
-npm install @uepm/example-plugin
+**Plugin author:**
+```sh
+cd YourPlugin           # directory containing a .uplugin file
+uepm init               # detects .uplugin, prompts for plugin metadata, writes [Plugin]
+uepm publish            # builds .tgz, PUTs to registry — no npm required
 ```
 
-### 3. Open your project in Unreal Engine
+## Commands
 
-Plugins from `node_modules` will be automatically discovered and loaded!
+| Command | Description |
+|---|---|
+| `uepm init [--yes]` | **Project context** (`.uproject` present): creates `Config/UEPM.ini`, `UEPMPlugins/`, modifies `.uproject`. **Plugin context** (`.uplugin` present): prompts for publish metadata and writes `[Plugin]` section. |
+| `uepm install [@scope/pkg[@ver] ...]` | Install plugins. No args installs everything in `Config/UEPM.ini`. |
+| `uepm uninstall @scope/pkg` | Remove a plugin and update `Config/UEPM.ini`. |
+| `uepm update [@scope/pkg]` | Update one or all plugins to latest compatible versions. |
+| `uepm list` | Show installed plugins and engine compatibility status. |
+| `uepm publish [--tag TAG] [--dry-run] [--yes] [--access public\|restricted]` | Publish this plugin to the registry. Reads `[Plugin]` from `Config/UEPM.ini`. Requires `UEPM_TOKEN`. |
 
-## Try the Complete Example
+## Project files
 
-For a working demonstration:
+**`Config/UEPM.ini`** — human-edited, check this in:
+```toml
+[Settings]
+EngineVersion = "5.4"
+CommitPlugins = false
 
-```bash
-cd samples/project
-npm install
-# Open SampleProject.uproject in Unreal Engine
+[Dependencies]
+"@acme/cool-plugin" = "^1.2.0"
+"@acme/base-utils" = "^2.0.0"
 ```
 
-The sample project includes example plugins and demonstrates the complete workflow.
+`CommitPlugins = false` means `UEPMPlugins/` is gitignored and restored by `uepm install` after clone.
+Set to `true` to check the installed plugins into version control (recommended for Perforce).
 
-## CLI Commands
-
-### `npx @uepm/init`
-
-Initialize an Unreal Engine project **or plugin** for NPM support. The command automatically detects context from the files in the current directory.
-
-**Usage:**
-```bash
-npx @uepm/init [options]
-```
-
-**Options:**
-- `-f, --force` - Force reinitialization even if already initialized
-- `-d, --project-dir <path>` - Project directory (defaults to current directory)
-- `-y, --yes` - Accept all derived defaults without prompting (plugin context only)
-- `-h, --help` - Display help information
-- `-V, --version` - Display version number
-
-#### Project initialization
-
-Run in a directory containing a `.uproject` file:
-
-```bash
-cd YourUnrealProject
-npx @uepm/init
-```
-
-This will:
-- Add `UEPMPlugins` to your project's `AdditionalPluginDirectories`
-- Create or update `package.json` with the `uepm-postinstall` hook
-
-#### Plugin initialization
-
-Run in a directory containing a `.uplugin` file:
-
-```bash
-cd YourPlugin
-npx @uepm/init
-```
-
-You'll be walked through six fields with defaults pre-filled from your `.uplugin` metadata — just hit enter to accept:
-
-```
-This utility will walk you through setting up your plugin for NPM distribution.
-Press ^C at any time to quit.
-
-package name: (@acme/my-plugin)
-version: (1.0.0)
-description: (My awesome plugin)
-author: (Acme)
-license: (MIT)
-engine version (semver range): (^5.0.0)
-```
-
-The package name is automatically scoped using the `CreatedBy` field from your `.uplugin` file (e.g. `CreatedBy: "Acme"` → `@acme/my-plugin`). After confirming, init will:
-
-- Create or update `package.json` configured for NPM distribution
-- Include a `files` array covering `Source/`, `Content/`, `Resources/`, and `Config/`
-- Add build scripts if a `Source/` directory is detected
-- Create or update `.gitignore` with Unreal Engine plugin patterns
-
-**Non-interactive / CI use:**
-```bash
-# Skip prompts and use derived defaults
-npx @uepm/init --yes
-```
-
-**Examples:**
-```bash
-# Initialize current directory (project or plugin, auto-detected)
-npx @uepm/init
-
-# Force reinitialize
-npx @uepm/init --force
-
-# Initialize a specific directory
-npx @uepm/init --project-dir ./MyPlugin
-```
-
-After plugin initialization, review the generated `package.json` and then publish:
-
-```bash
-# Review and adjust the generated configuration
-cat package.json
-
-# Publish to NPM
-npm publish
-```
-
-### `uepm-postinstall`
-
-Validation hook that runs automatically after `npm install`. This command is typically not run manually.
-
-**Usage:**
-```bash
-uepm-postinstall [project-directory]
-```
-
-This command:
-- Sets up plugin symlinks in the `UEPMPlugins` directory
-- Validates plugin compatibility with your engine version
-- Displays warnings for incompatible plugins
-
-## Plugin Package Structure
-
-To create UEPM-compatible plugins, your `package.json` must include specific metadata:
-
-### Required Fields
-
+**`uepm.lock`** — machine-generated, check this in:
 ```json
 {
-  "name": "@your-scope/plugin-name",
-  "version": "1.0.0",
-  "description": "Your plugin description",
-  "main": "YourPlugin.uplugin",
-  "unreal": {
-    "engineVersion": ">=5.0.0 <6.0.0",
-    "pluginName": "YourPlugin"
-  },
-  "files": [
-    "YourPlugin.uplugin",
-    "Source/**/*",
-    "Resources/**/*",
-    "Content/**/*"
-  ],
-  "keywords": ["unreal", "unreal-engine", "plugin", "uepm"],
-  "license": "MIT"
-}
-```
-
-### Engine Version Compatibility
-
-Use semantic versioning ranges to specify engine compatibility:
-
-| Range | Description | Example |
-|-------|-------------|---------|
-| `">=5.0.0 <6.0.0"` | UE 5.x only | Most common for UE5 plugins |
-| `"^5.3.0"` | UE 5.3+ but not 6.0 | Compatible with 5.3, 5.4, etc. |
-| `"~5.3.0"` | UE 5.3.x only | Patch versions of 5.3 only |
-| `">=4.27.0"` | UE 4.27 and later | Cross-generation compatibility |
-| `"5.3.0"` | Exact version | Only UE 5.3.0 (not recommended) |
-
-### Plugin Dependencies
-
-Declare dependencies on other UEPM plugins:
-
-```json
-{
-  "dependencies": {
-    "@uepm/utility-plugin": "^1.0.0",
-    "@company/base-plugin": "~2.1.0"
-  }
-}
-```
-
-Also declare them in your `.uplugin` file:
-
-```json
-{
-  "Plugins": [
-    {
-      "Name": "UtilityPlugin",
-      "Enabled": true
+  "version": 1,
+  "plugins": {
+    "@acme/cool-plugin": {
+      "resolved": "1.2.3",
+      "tarball": "https://registry.npmjs.org/...",
+      "sha512": "sha512-...",
+      "dependencies": {}
     }
-  ]
-}
-```
-
-## Patch-Package Integration
-
-UEPM is fully compatible with [patch-package](https://github.com/ds300/patch-package) for persisting modifications to plugin source code.
-
-### Making Changes
-
-1. **Modify plugin source** in `node_modules`:
-   ```bash
-   # Edit the plugin files
-   code node_modules/@uepm/example-plugin/Source/ExamplePlugin/Private/ExamplePlugin.cpp
-   ```
-
-2. **Create a patch**:
-   ```bash
-   npx patch-package @uepm/example-plugin
-   ```
-
-3. **Commit the patch file**:
-   ```bash
-   git add patches/
-   git commit -m "Patch example plugin for custom behavior"
-   ```
-
-### Automatic Application
-
-Patches are automatically applied during `npm install` thanks to the postinstall script that UEPM sets up:
-
-```json
-{
-  "scripts": {
-    "postinstall": "patch-package && uepm-postinstall"
   }
 }
 ```
 
-### Best Practices
+## Publishing plugins
 
-- **Keep patches minimal** - only change what's necessary
-- **Document your changes** - add comments explaining modifications
-- **Test thoroughly** - ensure patches work across different environments
-- **Version carefully** - patches are tied to specific plugin versions
+Run `uepm init` in your plugin directory to write a `[Plugin]` section:
 
-## Troubleshooting
+```toml
+# Config/UEPM.ini (inside the plugin source tree)
+[Plugin]
+Name        = "@your-scope/plugin-name"
+Version     = "1.0.0"
+Description = "Does cool things"
+Author      = "Your Studio"
+License     = "MIT"
+EngineRange = ">=5.3.0, <6.0.0"
+Main        = "YourPlugin.uplugin"
 
-### Common Issues
-
-#### "No .uproject file found"
-
-**Problem**: Running `npx @uepm/init` in wrong directory.
-
-**Solution**: Navigate to your Unreal Engine project root (where the `.uproject` file is located).
-
-```bash
-cd path/to/your/UnrealProject
-npx @uepm/init
+[Dependencies]
+# transitive deps go here
 ```
 
-#### Plugin not loading in Unreal Engine
+Then publish — no Node.js or npm required:
 
-**Problem**: Plugin appears in `node_modules` but doesn't load in Unreal Engine.
-
-**Solutions**:
-1. **Check the Output Log** in Unreal Engine for error messages
-2. **Verify plugin structure** - ensure valid `.uplugin` file exists
-3. **Regenerate project files** - close Unreal Engine and regenerate
-4. **Check engine compatibility** - run `npx uepm-postinstall` to see warnings
-
-#### Engine compatibility warnings
-
-**Problem**: Seeing warnings about plugin compatibility during `npm install`.
-
-**Example warning**:
-```
-⚠️ Plugin @uepm/example-plugin@1.0.0 may be incompatible
-   Required: >=5.0.0 <6.0.0, Found: 4.27.2
+```sh
+export UEPM_TOKEN=<your-npm-token>
+uepm publish                  # interactive confirm + upload
+uepm publish --dry-run        # validate and list files without uploading
+uepm publish --tag beta       # publish under a non-default dist-tag
 ```
 
-**Solutions**:
-1. **Update Unreal Engine** to a compatible version
-2. **Contact plugin author** for compatibility updates
-3. **Use at your own risk** - plugin may still work despite warnings
-4. **Fork and update** the plugin for your engine version
+`uepm publish` builds the `.tgz` tarball in memory, computes SHA-512 integrity,
+and PUTs directly to the registry API. `package.json` is never written to disk.
 
-#### Build errors after installing plugins
+## Plugin dependencies
 
-**Problem**: C++ compilation errors after installing plugins.
+A plugin can declare its own UEPM dependencies in a `Config/UEPM.ini` at its package root. UEPM reads this after extraction and installs those deps recursively, with conflict detection.
 
-**Solutions**:
-1. **Clean and rebuild** your project
-2. **Check for conflicting dependencies** between plugins
-3. **Verify plugin source compatibility** with your engine version
-4. **Review applied patches** - ensure they're still valid
+### Local development
 
-#### NPM installation failures
+Use `file:` paths to work against local plugin source without publishing:
 
-**Problem**: `npm install` fails with network or permission errors.
-
-**Solutions**:
-```bash
-# Clear NPM cache
-npm cache clean --force
-
-# Delete and reinstall
-rm -rf node_modules package-lock.json
-npm install
-
-# Check NPM configuration
-npm config list
+```toml
+[Dependencies]
+"@acme/cool-plugin" = "file:../plugins/cool-plugin"
 ```
 
-#### Multiple .uproject files
+`file:` deps create a symlink in `UEPMPlugins/` pointing at the source directory — edits are visible immediately.
 
-**Problem**: Directory contains multiple `.uproject` files.
+## Environment variables
 
-**Solution**: UEPM will use the first `.uproject` file found alphabetically. Move to a directory with only one project file, or specify the project directory:
-
-```bash
-npx @uepm/init --project-dir ./SpecificProject
-```
-
-### Getting Help
-
-1. **Check the samples** - [`samples/`](./samples) contains working examples
-2. **Review plugin structure** - examine `samples/plugins/` for reference
-3. **Enable verbose logging** - check Unreal Engine's Output Log for details
-4. **Test with sample project** - verify UEPM works with `samples/project/`
-
-## Architecture
-
-### System Components
-
-UEPM consists of several focused packages:
-
-#### Core Packages
-
-- **[@uepm/init](./packages/init)** - One-time initialization tool (run via npx)
-- **[@uepm/postinstall](./packages/postinstall)** - Postinstall hooks for setup and validation
-- **[@uepm/core](./packages/core)** - Shared utilities for file management
-
-#### Sample Packages
-
-- **[@uepm/example-plugin](./samples/plugins/example-plugin)** - Basic plugin example
-- **[@uepm/dependency-plugin](./samples/plugins/dependency-plugin)** - Plugin with dependencies
-
-### How It Works
-
-1. **Initialization**: `@uepm/init` modifies your `.uproject` file to include `node_modules` in plugin search paths
-2. **Installation**: Standard `npm install` downloads plugins to `node_modules`
-3. **Setup**: Postinstall hook creates symlinks in `UEPMPlugins/` directory for Unreal Engine
-4. **Validation**: Automatic compatibility checking warns about engine version mismatches
-5. **Loading**: Unreal Engine discovers and loads plugins from the configured directories
-
-### Project Structure
-
-```
-your-unreal-project/
-├── YourProject.uproject          # Modified by UEPM init
-├── package.json                  # NPM configuration
-├── UEPMPlugins/                  # Symlinks to plugins (for UE)
-│   ├── example-plugin/           # → ../node_modules/@uepm/example-plugin
-│   └── dependency-plugin/        # → ../node_modules/@uepm/dependency-plugin
-├── node_modules/@uepm/           # Actual plugin files
-│   ├── example-plugin/
-│   └── dependency-plugin/
-├── patches/                      # patch-package modifications
-└── Source/                       # Your project source
-```
+| Variable | Default | Description |
+|---|---|---|
+| `UEPM_REGISTRY` | `https://registry.npmjs.org` | Registry base URL |
+| `UEPM_TOKEN` | — | Bearer token for private registries |
+| `RUST_LOG` | — | Log level (`debug`, `info`, `warn`, `error`) |
 
 ## Contributing
 
-We welcome contributions to UEPM! Here's how to get started:
-
-### Development Setup
-
-1. **Clone the repository**:
-   ```bash
-   git clone https://github.com/your-org/uepm.git
-   cd uepm
-   ```
-
-2. **Install dependencies**:
-   ```bash
-   npm install
-   ```
-
-3. **Build all packages**:
-   ```bash
-   npm run build
-   ```
-
-4. **Run tests**:
-   ```bash
-   npm test
-   ```
-
-### Working on Packages
-
-Each package can be developed independently:
-
-```bash
-# Work on the init package
-cd packages/init
-npm run build
-npm test
-
-# Work on the core utilities
-cd packages/core
-npm run build
-npm test
+```sh
+cargo build
+cargo test
+cargo test registry      # run tests for a specific module
 ```
 
-### Testing Changes
-
-1. **Unit tests**: Each package has comprehensive unit tests
-2. **Integration tests**: Test the complete workflow with sample projects
-3. **Property-based tests**: Verify correctness properties with random inputs
-
-```bash
-# Run all tests
-npm test
-
-# Run tests for specific package
-cd packages/init && npm test
-
-# Run tests in watch mode
-cd packages/core && npm run test:watch
-```
-
-### Creating Example Plugins
-
-To contribute example plugins:
-
-1. **Follow the structure** in `samples/plugins/example-plugin/`
-2. **Include comprehensive tests** for plugin structure and functionality
-3. **Document the example** with clear README and comments
-4. **Test with sample project** to ensure compatibility
-
-### Submitting Changes
-
-1. **Fork the repository** and create a feature branch
-2. **Make your changes** with appropriate tests
-3. **Ensure all tests pass** - run `npm test` from the root
-4. **Update documentation** if needed
-5. **Submit a pull request** with a clear description
-
-### Code Style
-
-- **TypeScript**: All code should be written in TypeScript
-- **Testing**: Use Vitest for unit tests and fast-check for property-based tests
-- **Documentation**: Include JSDoc comments for public APIs
-- **Formatting**: Follow the existing code style (we may add Prettier in the future)
-
-### Release Process
-
-Releases are managed through NPM workspaces:
-
-1. **Update versions** in affected packages
-2. **Build all packages**: `npm run build`
-3. **Run full test suite**: `npm test`
-4. **Publish packages**: `npm publish --workspaces`
-
-## Requirements
-
-- **Node.js** >= 18.0.0
-- **NPM** >= 7.0.0 (for workspaces support)
-- **Unreal Engine** 5.0+ (4.27+ may work but is not officially supported)
+Modules: `manifest`, `lockfile`, `uproject`, `registry`, `installer`, `resolver`, `commands/`
 
 ## License
 
-MIT - see [LICENSE](./LICENSE) for details.
+MIT — see [LICENSE](./LICENSE)

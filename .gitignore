@@ -1,34 +1,28 @@
-# Dependencies
-node_modules/
+# Rust
+target/
+# Note: Cargo.lock is intentionally tracked (binary crate)
 
-# Build output
-dist/
-*.tsbuildinfo
-
-# Test coverage
-coverage/
+# Build artifacts
+*.exe
+*.dll
+*.so
+*.dylib
+*.rlib
 
 # IDE
-.vscode/
 .idea/
-*.swp
-*.swo
+.vscode/
+*.iml
 
-# OS
-.DS_Store
-Thumbs.db
-
-# Logs
-*.log
-npm-debug.log*
-
-# Temporary files
-*.tmp
-.cache/
-
-# Package locks (keep root, ignore workspace locks)
-packages/*/package-lock.json
-
-samples/project/Plugins/Developer/RiderLink/
-
+# Environment
 .env
+
+# Install script artifacts
+install/
+
+# macOS
+.DS_Store
+.pi/
+
+# Local MCP config (not for version control)
+.mcp.json

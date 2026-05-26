@@ -1,0 +1,24 @@
+{
+  "FileVersion": 3,
+  "Version": 1,
+  "VersionName": "2.0.4",
+  "FriendlyName": "Example Plugin",
+  "Description": "An example Unreal Engine plugin demonstrating NPM distribution pattern",
+  "Category": "Other",
+  "CreatedBy": "UEPM",
+  "CreatedByURL": "https://github.com/adamschlesinger/uepm",
+  "DocsURL": "",
+  "MarketplaceURL": "",
+  "SupportURL": "",
+  "CanContainContent": true,
+  "IsBetaVersion": false,
+  "IsExperimentalVersion": false,
+  "Installed": false,
+  "Modules": [
+    {
+      "Name": "ExamplePlugin",
+      "Type": "Runtime",
+      "LoadingPhase": "Default"
+    }
+  ]
+}

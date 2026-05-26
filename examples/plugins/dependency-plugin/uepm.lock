@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "plugins": {
+    "@uepm/example-plugin": {
+      "resolved": "2.0.0",
+      "tarball": "https://registry.npmjs.org/@uepm/example-plugin/-/example-plugin-2.0.0.tgz",
+      "sha512": "sha512-YjB9trx3Fyz6Ysn5So4THp8vGVGiEsLD4dYVXPH6doH0FW7Tj2ViuA/xgGAejipcaOlb0+N0a6BSDTy4HqO0QQ==",
+      "dependencies": {}
+    }
+  }
+}

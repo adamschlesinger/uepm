@@ -1,0 +1,25 @@
+{
+  "AdditionalPluginDirectories": [
+    "UEPMPlugins"
+  ],
+  "Category": "",
+  "Description": "Sample Unreal Engine project demonstrating for UEPM",
+  "EngineAssociation": "5.7",
+  "FileVersion": 3,
+  "Modules": [
+    {
+      "LoadingPhase": "Default",
+      "Name": "SampleProject",
+      "Type": "Runtime"
+    }
+  ],
+  "Plugins": [
+    {
+      "Enabled": true,
+      "Name": "ModelingToolsEditorMode",
+      "TargetAllowList": [
+        "Editor"
+      ]
+    }
+  ]
+}
