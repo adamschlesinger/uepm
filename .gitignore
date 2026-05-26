@@ -23,3 +23,6 @@ install/
 # macOS
 .DS_Store
 .pi/
+
+# Local MCP config (not for version control)
+.mcp.json
