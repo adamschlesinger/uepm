@@ -1,4 +1,4 @@
-use crate::context::{OutputMode, UEPMContext};
+use crate::context::UEPMContext;
 use crate::errors::UepmError;
 use crate::installer::{download_and_extract, symlink_local};
 use crate::lockfile::{LockFile, LockedPlugin};
@@ -16,7 +16,8 @@ pub struct ResolveContext<'a> {
     pub resolved: &'a mut HashMap<String, String>,
     pub client: &'a RegistryClient,
     pub token: Option<&'a str>,
-    pub output_mode: OutputMode,
+    /// False when `--json` is active — suppresses `print_info` calls that would contaminate stdout.
+    pub verbose: bool,
 }
 
 impl<'a> ResolveContext<'a> {
@@ -26,6 +27,7 @@ impl<'a> ResolveContext<'a> {
         lock: &'a mut LockFile,
         resolved: &'a mut HashMap<String, String>,
     ) -> Self {
+        use crate::context::OutputMode;
         ResolveContext {
             project_dir: &ctx.project_dir,
             uepm_plugins_dir: &ctx.uepm_plugins_dir,
@@ -33,7 +35,7 @@ impl<'a> ResolveContext<'a> {
             resolved,
             client: &ctx.registry,
             token: ctx.token.as_deref(),
-            output_mode: ctx.output_mode,
+            verbose: ctx.output_mode == OutputMode::Human,
         }
     }
 }
@@ -90,7 +92,7 @@ pub async fn resolve_and_install(
 
     let (version, tarball, sha512) = if let Some(rel_path) = range.strip_prefix("file:") {
         let local_path = ctx.project_dir.join(rel_path);
-        if ctx.output_mode == OutputMode::Human {
+        if ctx.verbose {
             crate::output::print_info(&format!("Installing {package} from {rel_path}"));
         }
 
@@ -108,7 +110,7 @@ pub async fn resolve_and_install(
             ctx.client.fetch_metadata_for_version(package, range).await?
         };
 
-        if ctx.output_mode == OutputMode::Human {
+        if ctx.verbose {
             crate::output::print_info(&format!("Installing {}@{}", package, meta.version));
         }
         download_and_extract(&meta.tarball, &meta.integrity, package, ctx.uepm_plugins_dir, ctx.token).await?;
@@ -204,7 +206,7 @@ mod tests {
             resolved: &mut resolved,
             client: &client,
             token: None,
-            output_mode: crate::context::OutputMode::Human,
+            verbose: true,
         };
 
         resolve_and_install("@acme/local-plugin", &format!("file:{plugin_rel}"), &mut ctx)

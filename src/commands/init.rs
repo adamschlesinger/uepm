@@ -13,7 +13,6 @@ enum InitOutput {
         name: String,
         version: String,
         engine_range: String,
-        vcs: Option<String>,
     },
 }
 use crate::manifest::{
@@ -27,22 +26,21 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 
 pub async fn run(ctx: &UEPMContext, yes: bool) -> Result<(), UepmError> {
+    let verbose = ctx.output_mode != OutputMode::Json;
     if let Some(uplugin_path) = find_uplugin(&ctx.project_dir) {
-        run_plugin_init(&ctx.project_dir, &uplugin_path, yes).await?;
+        run_plugin_init(&ctx.project_dir, &uplugin_path, yes, verbose).await?;
         if ctx.output_mode == OutputMode::Json {
             let m = crate::manifest::read_manifest(&ctx.project_dir)?;
-            if let Some(pkg) = m.package {
-                crate::output::emit_json(&InitOutput::Plugin {
-                    name: pkg.name,
-                    version: pkg.version,
-                    engine_range: pkg.engine_range,
-                    vcs: None,
-                });
-            }
+            let pkg = m.package.ok_or(UepmError::NoPackageMetadata)?;
+            crate::output::emit_json(&InitOutput::Plugin {
+                name: pkg.name,
+                version: pkg.version,
+                engine_range: pkg.engine_range,
+            });
         }
     } else {
         let commit = select_commit_plugins(&ctx.project_dir, yes)?;
-        run_init_with_commit(&ctx.project_dir, commit).await?;
+        run_init_with_commit(&ctx.project_dir, commit, verbose).await?;
         if ctx.output_mode == OutputMode::Json {
             let m = crate::manifest::read_manifest(&ctx.project_dir)?;
             crate::output::emit_json(&InitOutput::Project {
@@ -152,6 +150,7 @@ pub async fn run_plugin_init(
     plugin_dir: &Path,
     uplugin_path: &Path,
     yes: bool,
+    verbose: bool,
 ) -> Result<(), UepmError> {
     // Check interactive terminal early (unless --yes)
     if !yes && !dialoguer::console::Term::stdout().is_term() {
@@ -227,8 +226,10 @@ pub async fn run_plugin_init(
     }
     write_package_metadata(plugin_dir, &meta)?;
 
-    crate::output::print_success("Plugin initialized for UEPM publishing");
-    crate::output::print_info("Run 'uepm publish' to publish to the registry");
+    if verbose {
+        crate::output::print_success("Plugin initialized for UEPM publishing");
+        crate::output::print_info("Run 'uepm publish' to publish to the registry");
+    }
 
     Ok(())
 }
@@ -273,14 +274,16 @@ fn select_commit_plugins(project_dir: &Path, yes: bool) -> Result<bool, UepmErro
         .map_err(|e| UepmError::Io(std::io::Error::other(e.to_string())))
 }
 
-pub async fn run_init_with_commit(project_dir: &Path, commit_plugins: bool) -> Result<(), UepmError> {
+pub async fn run_init_with_commit(project_dir: &Path, commit_plugins: bool, verbose: bool) -> Result<(), UepmError> {
     let uproject_path = find_uproject(project_dir)?;
 
     let engine_assoc = get_engine_association(&uproject_path)?;
     let engine_version = if is_guid(&engine_assoc) {
-        crate::output::print_warn(
-            "Engine is a launcher-installed GUID — engine_version will be omitted from Config/UEPM.ini",
-        );
+        if verbose {
+            crate::output::print_warn(
+                "Engine is a launcher-installed GUID — engine_version will be omitted from Config/UEPM.ini",
+            );
+        }
         None
     } else {
         Some(engine_assoc.as_str())
@@ -313,8 +316,10 @@ pub async fn run_init_with_commit(project_dir: &Path, commit_plugins: bool) -> R
         }
     }
 
-    crate::output::print_success("Project initialized for UEPM");
-    crate::output::print_info("Run 'uepm install @scope/plugin' to add your first plugin");
+    if verbose {
+        crate::output::print_success("Project initialized for UEPM");
+        crate::output::print_info("Run 'uepm install @scope/plugin' to add your first plugin");
+    }
 
     Ok(())
 }
@@ -360,7 +365,7 @@ mod tests {
         let dir = tempdir().unwrap();
         write_uproject(dir.path(), "5.7");
 
-        run_init_with_commit(dir.path(), false).await.unwrap();
+        run_init_with_commit(dir.path(), false, true).await.unwrap();
 
         assert!(dir.path().join("Config/UEPM.ini").exists());
         let m = crate::manifest::read_manifest(dir.path()).unwrap();
@@ -380,7 +385,7 @@ mod tests {
         // Simulate a git repo
         std::fs::create_dir(dir.path().join(".git")).unwrap();
 
-        run_init_with_commit(dir.path(), false).await.unwrap();
+        run_init_with_commit(dir.path(), false, true).await.unwrap();
 
         let gitignore = std::fs::read_to_string(dir.path().join(".gitignore")).unwrap();
         assert!(gitignore.contains("UEPMPlugins/"));
@@ -392,7 +397,7 @@ mod tests {
         write_uproject(dir.path(), "5.7");
         std::fs::create_dir(dir.path().join(".git")).unwrap();
 
-        run_init_with_commit(dir.path(), true).await.unwrap();
+        run_init_with_commit(dir.path(), true, true).await.unwrap();
 
         assert!(!dir.path().join(".gitignore").exists());
     }
@@ -408,7 +413,7 @@ mod tests {
         )
         .unwrap();
 
-        run_init_with_commit(dir.path(), false).await.unwrap();
+        run_init_with_commit(dir.path(), false, true).await.unwrap();
 
         let m = crate::manifest::read_manifest(dir.path()).unwrap();
         assert!(m.plugins.contains_key("@acme/existing"), "init wiped existing plugins");
@@ -466,7 +471,7 @@ mod tests {
             }),
         );
         let uplugin = dir.path().join("MyPlugin.uplugin");
-        run_plugin_init(dir.path(), &uplugin, true).await.unwrap();
+        run_plugin_init(dir.path(), &uplugin, true, true).await.unwrap();
 
         let meta = crate::manifest::read_package_metadata(dir.path()).unwrap();
         assert_eq!(meta.name, "@acme-studio/my-plugin");
@@ -486,7 +491,7 @@ mod tests {
             "CreatedBy": "Dev",
         }));
         let uplugin = dir.path().join("FreshPlugin.uplugin");
-        run_plugin_init(dir.path(), &uplugin, true).await.unwrap();
+        run_plugin_init(dir.path(), &uplugin, true, true).await.unwrap();
         assert!(dir.path().join("Config/UEPM.ini").exists());
     }
 
@@ -505,7 +510,7 @@ mod tests {
             "CreatedBy": "Dev",
         }));
         let uplugin = dir.path().join("MyPlugin.uplugin");
-        run_plugin_init(dir.path(), &uplugin, true).await.unwrap();
+        run_plugin_init(dir.path(), &uplugin, true, true).await.unwrap();
 
         let m = crate::manifest::read_manifest(dir.path()).unwrap();
         assert!(m.plugins.contains_key("@acme/dep"), "plugins section was wiped");
@@ -535,7 +540,7 @@ mod tests {
         // Pre-create manifest with commit_plugins=false
         crate::manifest::create_manifest(dir.path(), None, false).unwrap();
 
-        run_init_with_commit(dir.path(), true).await.unwrap();
+        run_init_with_commit(dir.path(), true, true).await.unwrap();
 
         let m = crate::manifest::read_manifest(dir.path()).unwrap();
         assert!(m.commit_plugins, "commit_plugins should be updated even for GUID engines");
@@ -547,7 +552,7 @@ mod tests {
         let dir = tempdir().unwrap();
         write_uproject(dir.path(), "{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}");
 
-        run_init_with_commit(dir.path(), false).await.unwrap();
+        run_init_with_commit(dir.path(), false, true).await.unwrap();
 
         let m = crate::manifest::read_manifest(dir.path()).unwrap();
         assert!(m.engine_version.is_none());

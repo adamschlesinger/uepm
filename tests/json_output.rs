@@ -375,3 +375,64 @@ fn test_json_without_yes_on_init_exits_with_error_json() {
     let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
     assert!(json["error"].as_str().unwrap().contains("--yes"));
 }
+
+// ── publish --json --dry-run ──────────────────────────────────────────────────
+
+#[test]
+fn test_publish_json_dry_run_shape() {
+    let dir = tempdir().unwrap();
+    std::fs::create_dir(dir.path().join("Config")).unwrap();
+    std::fs::write(dir.path().join("CoolPlugin.uplugin"), r#"{"FileVersion": 3}"#).unwrap();
+    std::fs::write(
+        dir.path().join("Config/UEPM.ini"),
+        "[Plugin]\nName = \"@acme/cool-plugin\"\nVersion = \"1.0.0\"\nEngineRange = \">=5.3.0, <6.0.0\"\nMain = \"CoolPlugin.uplugin\"\nAuthor = \"ACME\"\nLicense = \"MIT\"\nDescription = \"A plugin\"\n\n[Dependencies]\n",
+    )
+    .unwrap();
+
+    let output = uepm()
+        .current_dir(dir.path())
+        .args(["--json", "publish", "--yes", "--dry-run"])
+        .output()
+        .unwrap();
+
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(json["name"], "@acme/cool-plugin");
+    assert_eq!(json["version"], "1.0.0");
+    assert!(json["registry"].as_str().is_some_and(|r| !r.is_empty()));
+    assert_eq!(json["dry_run"], true);
+}
+
+// ── init --json --yes (plugin context) ───────────────────────────────────────
+
+#[test]
+fn test_init_plugin_json_shape() {
+    let dir = tempdir().unwrap();
+    std::fs::write(
+        dir.path().join("CoolPlugin.uplugin"),
+        r#"{"FriendlyName": "Cool Plugin", "VersionName": "2.0.0", "CreatedBy": "ACME"}"#,
+    )
+    .unwrap();
+
+    let output = uepm()
+        .current_dir(dir.path())
+        .args(["--json", "init", "--yes"])
+        .output()
+        .unwrap();
+
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(json["type"], "plugin");
+    assert!(json["name"].as_str().is_some_and(|n| n.contains("acme")));
+    assert_eq!(json["version"], "2.0.0");
+    assert!(json["engine_range"].as_str().is_some_and(|r| !r.is_empty()));
+    assert!(!json.as_object().unwrap().contains_key("vcs"), "vcs field must not be present");
+}
