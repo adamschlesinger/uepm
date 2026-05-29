@@ -1,5 +1,21 @@
-use crate::context::UEPMContext;
+use crate::context::{OutputMode, UEPMContext};
 use crate::errors::UepmError;
+
+#[derive(serde::Serialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+enum InitOutput {
+    Project {
+        project_dir: String,
+        engine_version: Option<String>,
+        commit_plugins: bool,
+    },
+    Plugin {
+        name: String,
+        version: String,
+        engine_range: String,
+        vcs: Option<String>,
+    },
+}
 use crate::manifest::{
     create_manifest, manifest_exists, read_manifest, write_manifest,
     PackageMetadata, write_package_metadata,
@@ -12,11 +28,31 @@ use std::path::{Path, PathBuf};
 
 pub async fn run(ctx: &UEPMContext, yes: bool) -> Result<(), UepmError> {
     if let Some(uplugin_path) = find_uplugin(&ctx.project_dir) {
-        run_plugin_init(&ctx.project_dir, &uplugin_path, yes).await
+        run_plugin_init(&ctx.project_dir, &uplugin_path, yes).await?;
+        if ctx.output_mode == OutputMode::Json {
+            let m = crate::manifest::read_manifest(&ctx.project_dir)?;
+            if let Some(pkg) = m.package {
+                crate::output::emit_json(&InitOutput::Plugin {
+                    name: pkg.name,
+                    version: pkg.version,
+                    engine_range: pkg.engine_range,
+                    vcs: None,
+                });
+            }
+        }
     } else {
         let commit = select_commit_plugins(&ctx.project_dir, yes)?;
-        run_init_with_commit(&ctx.project_dir, commit).await
+        run_init_with_commit(&ctx.project_dir, commit).await?;
+        if ctx.output_mode == OutputMode::Json {
+            let m = crate::manifest::read_manifest(&ctx.project_dir)?;
+            crate::output::emit_json(&InitOutput::Project {
+                project_dir: ctx.project_dir.display().to_string(),
+                engine_version: m.engine_version.clone(),
+                commit_plugins: m.commit_plugins,
+            });
+        }
     }
+    Ok(())
 }
 
 // ── Plugin-context init ───────────────────────────────────────────────────────
