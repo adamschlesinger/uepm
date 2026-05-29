@@ -1,4 +1,4 @@
-use crate::context::UEPMContext;
+use crate::context::{OutputMode, UEPMContext};
 use crate::errors::UepmError;
 use crate::installer::{download_and_extract, symlink_local};
 use crate::lockfile::{LockFile, LockedPlugin};
@@ -16,6 +16,7 @@ pub struct ResolveContext<'a> {
     pub resolved: &'a mut HashMap<String, String>,
     pub client: &'a RegistryClient,
     pub token: Option<&'a str>,
+    pub output_mode: OutputMode,
 }
 
 impl<'a> ResolveContext<'a> {
@@ -32,6 +33,7 @@ impl<'a> ResolveContext<'a> {
             resolved,
             client: &ctx.registry,
             token: ctx.token.as_deref(),
+            output_mode: ctx.output_mode,
         }
     }
 }
@@ -88,7 +90,9 @@ pub async fn resolve_and_install(
 
     let (version, tarball, sha512) = if let Some(rel_path) = range.strip_prefix("file:") {
         let local_path = ctx.project_dir.join(rel_path);
-        crate::output::print_info(&format!("Installing {package} from {rel_path}"));
+        if ctx.output_mode == OutputMode::Human {
+            crate::output::print_info(&format!("Installing {package} from {rel_path}"));
+        }
 
         let version = symlink_local(&local_path, package, ctx.uepm_plugins_dir)?;
         (version, range.to_string(), String::new())
@@ -104,7 +108,9 @@ pub async fn resolve_and_install(
             ctx.client.fetch_metadata_for_version(package, range).await?
         };
 
-        crate::output::print_info(&format!("Installing {}@{}", package, meta.version));
+        if ctx.output_mode == OutputMode::Human {
+            crate::output::print_info(&format!("Installing {}@{}", package, meta.version));
+        }
         download_and_extract(&meta.tarball, &meta.integrity, package, ctx.uepm_plugins_dir, ctx.token).await?;
         (meta.version, meta.tarball, meta.integrity)
     };
@@ -198,6 +204,7 @@ mod tests {
             resolved: &mut resolved,
             client: &client,
             token: None,
+            output_mode: crate::context::OutputMode::Human,
         };
 
         resolve_and_install("@acme/local-plugin", &format!("file:{plugin_rel}"), &mut ctx)

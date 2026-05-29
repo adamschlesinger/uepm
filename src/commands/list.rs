@@ -7,6 +7,7 @@ use std::path::Path;
 #[derive(Debug, serde::Serialize)]
 pub struct PluginEntry {
     pub name: String,
+    #[serde(rename = "version")]
     pub resolved_version: Option<String>,
     pub engine_range: String,
     pub compatible: Option<bool>,
