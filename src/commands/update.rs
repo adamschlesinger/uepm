@@ -1,22 +1,32 @@
-use crate::context::UEPMContext;
+use crate::context::{OutputMode, UEPMContext};
 use crate::errors::UepmError;
 use crate::lockfile::{read_lockfile, write_lockfile, LockFile};
 use crate::manifest::read_manifest;
 use crate::resolver::{resolve_and_install, ResolveContext};
 use std::collections::HashMap;
 
+#[derive(serde::Serialize)]
+struct UpdateResult {
+    name: String,
+    from: Option<String>,
+    to: String,
+}
+
 /// Re-resolve and reinstall plugins, ignoring the lockfile so fresh versions are fetched.
 /// If `package` is `Some`, updates only that plugin; otherwise updates all.
 pub async fn run(ctx: &UEPMContext, package: Option<String>) -> Result<(), UepmError> {
     let mut manifest = read_manifest(&ctx.project_dir)?;
 
+    // Snapshot old lock before any modifications — needed for UpdateResult.from.
+    let old_lock = read_lockfile(&ctx.project_dir)?.unwrap_or_default();
+
     // When updating a single package, seed the new lock with all existing
     // locked entries *except* the one being updated, so other packages
     // remain at their locked versions.
     let mut lock = if let Some(ref pkg) = package {
-        let mut existing = read_lockfile(&ctx.project_dir)?.unwrap_or_default();
-        existing.plugins.remove(pkg);
-        existing
+        let mut seeded = old_lock.clone();
+        seeded.plugins.remove(pkg);
+        seeded
     } else {
         LockFile::default()
     };
@@ -35,7 +45,22 @@ pub async fn run(ctx: &UEPMContext, package: Option<String>) -> Result<(), UepmE
     }
 
     write_lockfile(&ctx.project_dir, &lock)?;
-    crate::output::print_success(&format!("Updated {} plugin(s)", resolved.len()));
+
+    if ctx.output_mode == OutputMode::Json {
+        let mut results: Vec<UpdateResult> = resolved
+            .iter()
+            .map(|(name, to)| UpdateResult {
+                name: name.clone(),
+                from: old_lock.plugins.get(name).map(|p| p.resolved.clone()),
+                to: to.clone(),
+            })
+            .collect();
+        results.sort_by(|a, b| a.name.cmp(&b.name));
+        crate::output::emit_json(&results);
+    } else {
+        crate::output::print_success(&format!("Updated {} plugin(s)", resolved.len()));
+    }
+
     Ok(())
 }
 

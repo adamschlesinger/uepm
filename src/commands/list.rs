@@ -4,9 +4,10 @@ use crate::lockfile::read_lockfile;
 use crate::manifest::read_manifest;
 use std::path::Path;
 
-#[derive(Debug)]
+#[derive(Debug, serde::Serialize)]
 pub struct PluginEntry {
     pub name: String,
+    #[serde(rename = "version")]
     pub resolved_version: Option<String>,
     pub engine_range: String,
     pub compatible: Option<bool>,
@@ -15,6 +16,11 @@ pub struct PluginEntry {
 /// Entry point for `uepm list`. Prints all plugins and their engine compatibility.
 pub async fn run(ctx: &UEPMContext) -> Result<(), UepmError> {
     let plugins = list_plugins(&ctx.project_dir)?;
+
+    if ctx.output_mode == crate::context::OutputMode::Json {
+        crate::output::emit_json(&plugins);
+        return Ok(());
+    }
 
     if plugins.is_empty() {
         crate::output::print_info(
