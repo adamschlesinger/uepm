@@ -2,6 +2,7 @@ use crossterm::{
     execute,
     style::{Color, Print, ResetColor, SetForegroundColor},
 };
+use serde::Serialize;
 use std::io::stdout;
 
 fn print_prefixed(color: Color, prefix: &str, msg: &str) {
@@ -33,4 +34,10 @@ pub fn print_error(msg: &str) {
 /// Print a cyan informational message prefixed with ℹ.
 pub fn print_info(msg: &str) {
     print_prefixed(Color::Cyan, "ℹ ", msg);
+}
+
+/// Serialize `value` as compact JSON and print to stdout.
+/// Called by commands when `ctx.output_mode == OutputMode::Json`.
+pub fn emit_json<T: Serialize>(value: &T) {
+    println!("{}", serde_json::to_string(value).expect("serialize"));
 }
