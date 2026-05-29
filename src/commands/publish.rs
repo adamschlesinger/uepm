@@ -89,8 +89,8 @@ pub async fn run(
         base64::engine::general_purpose::STANDARD.encode(Sha512::digest(&tarball))
     );
 
-    let file_list = publisher::list_files(&ctx.project_dir)?;
     if ctx.output_mode != OutputMode::Json {
+        let file_list = publisher::list_files(&ctx.project_dir)?;
         println!("\n  Files ({}):", file_list.len() + 1); // +1 for package.json
         println!("    package/package.json  (generated)");
         for f in &file_list {
@@ -243,7 +243,7 @@ async fn upload(
     token: &str,
     _tag: &str,
 ) -> Result<(), UepmError> {
-    let url = format!("{}/{}", registry.trim_end_matches('/'), urlencoding::encode(name));
+    let url = format!("{}/{}", registry, urlencoding::encode(name));
 
     let client = reqwest::Client::new();
     let res = client

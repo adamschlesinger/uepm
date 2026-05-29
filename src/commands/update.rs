@@ -24,9 +24,9 @@ pub async fn run(ctx: &UEPMContext, package: Option<String>) -> Result<(), UepmE
     // locked entries *except* the one being updated, so other packages
     // remain at their locked versions.
     let mut lock = if let Some(ref pkg) = package {
-        let mut existing = read_lockfile(&ctx.project_dir)?.unwrap_or_default();
-        existing.plugins.remove(pkg);
-        existing
+        let mut seeded = old_lock.clone();
+        seeded.plugins.remove(pkg);
+        seeded
     } else {
         LockFile::default()
     };

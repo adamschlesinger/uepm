@@ -37,7 +37,11 @@ pub fn print_info(msg: &str) {
 }
 
 /// Serialize `value` as compact JSON and print to stdout.
-/// Called by commands when `ctx.output_mode == OutputMode::Json`.
 pub fn emit_json<T: Serialize>(value: &T) {
     println!("{}", serde_json::to_string(value).expect("serialize"));
+}
+
+/// Emit `{"error": msg}` as compact JSON on stdout.
+pub fn emit_json_error(msg: &str) {
+    emit_json(&serde_json::json!({"error": msg}));
 }

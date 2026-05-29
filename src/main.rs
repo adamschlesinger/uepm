@@ -68,7 +68,7 @@ async fn main() {
             Commands::Init { yes: false } | Commands::Publish { yes: false, .. }
         );
         if needs_yes {
-            println!("{}", serde_json::json!({"error": "pass --yes when using --json"}));
+            uepm::output::emit_json_error("pass --yes when using --json");
             std::process::exit(1);
         }
     }
@@ -77,7 +77,7 @@ async fn main() {
         Ok(c) => c,
         Err(e) => {
             if cli.json {
-                println!("{}", serde_json::json!({"error": e.to_string()}));
+                uepm::output::emit_json_error(&e.to_string());
             } else {
                 uepm::output::print_error(&format!("{e}"));
             }
@@ -99,7 +99,7 @@ async fn main() {
 
     if let Err(e) = result {
         if ctx.output_mode == OutputMode::Json {
-            println!("{}", serde_json::json!({"error": e.to_string()}));
+            uepm::output::emit_json_error(&e.to_string());
         } else {
             uepm::output::print_error(&format!("{e}"));
         }

@@ -28,25 +28,23 @@ use std::path::{Path, PathBuf};
 pub async fn run(ctx: &UEPMContext, yes: bool) -> Result<(), UepmError> {
     let verbose = ctx.output_mode != OutputMode::Json;
     if let Some(uplugin_path) = find_uplugin(&ctx.project_dir) {
-        run_plugin_init(&ctx.project_dir, &uplugin_path, yes, verbose).await?;
-        if ctx.output_mode == OutputMode::Json {
-            let m = crate::manifest::read_manifest(&ctx.project_dir)?;
-            let pkg = m.package.ok_or(UepmError::NoPackageMetadata)?;
-            crate::output::emit_json(&InitOutput::Plugin {
-                name: pkg.name,
-                version: pkg.version,
-                engine_range: pkg.engine_range,
-            });
+        if let Some(pkg) = run_plugin_init(&ctx.project_dir, &uplugin_path, yes, verbose).await? {
+            if ctx.output_mode == OutputMode::Json {
+                crate::output::emit_json(&InitOutput::Plugin {
+                    name: pkg.name,
+                    version: pkg.version,
+                    engine_range: pkg.engine_range,
+                });
+            }
         }
     } else {
         let commit = select_commit_plugins(&ctx.project_dir, yes)?;
-        run_init_with_commit(&ctx.project_dir, commit, verbose).await?;
+        let engine_version = run_init_with_commit(&ctx.project_dir, commit, verbose).await?;
         if ctx.output_mode == OutputMode::Json {
-            let m = crate::manifest::read_manifest(&ctx.project_dir)?;
             crate::output::emit_json(&InitOutput::Project {
                 project_dir: ctx.project_dir.display().to_string(),
-                engine_version: m.engine_version.clone(),
-                commit_plugins: m.commit_plugins,
+                engine_version,
+                commit_plugins: commit,
             });
         }
     }
@@ -151,7 +149,7 @@ pub async fn run_plugin_init(
     uplugin_path: &Path,
     yes: bool,
     verbose: bool,
-) -> Result<(), UepmError> {
+) -> Result<Option<PackageMetadata>, UepmError> {
     // Check interactive terminal early (unless --yes)
     if !yes && !dialoguer::console::Term::stdout().is_term() {
         return Err(UepmError::InteractiveRequired);
@@ -168,7 +166,7 @@ pub async fn run_plugin_init(
                     .map_err(|e| UepmError::Io(std::io::Error::other(e.to_string())))?;
                 if !overwrite {
                     crate::output::print_info("Aborted — [Plugin] section unchanged");
-                    return Ok(());
+                    return Ok(None);
                 }
             }
         }
@@ -231,7 +229,7 @@ pub async fn run_plugin_init(
         crate::output::print_info("Run 'uepm publish' to publish to the registry");
     }
 
-    Ok(())
+    Ok(Some(meta))
 }
 
 /// Walk up from `start` (inclusive) and return `true` as soon as `predicate` matches a directory.
@@ -274,11 +272,11 @@ fn select_commit_plugins(project_dir: &Path, yes: bool) -> Result<bool, UepmErro
         .map_err(|e| UepmError::Io(std::io::Error::other(e.to_string())))
 }
 
-pub async fn run_init_with_commit(project_dir: &Path, commit_plugins: bool, verbose: bool) -> Result<(), UepmError> {
+pub async fn run_init_with_commit(project_dir: &Path, commit_plugins: bool, verbose: bool) -> Result<Option<String>, UepmError> {
     let uproject_path = find_uproject(project_dir)?;
 
     let engine_assoc = get_engine_association(&uproject_path)?;
-    let engine_version = if is_guid(&engine_assoc) {
+    let engine_version: Option<String> = if is_guid(&engine_assoc) {
         if verbose {
             crate::output::print_warn(
                 "Engine is a launcher-installed GUID — engine_version will be omitted from Config/UEPM.ini",
@@ -286,20 +284,20 @@ pub async fn run_init_with_commit(project_dir: &Path, commit_plugins: bool, verb
         }
         None
     } else {
-        Some(engine_assoc.as_str())
+        Some(engine_assoc.clone())
     };
 
     add_plugin_directory(&uproject_path, "UEPMPlugins")?;
 
     if manifest_exists(project_dir) {
         let mut manifest = read_manifest(project_dir)?;
-        if let Some(ver) = engine_version {
-            manifest.engine_version = Some(ver.to_string());
+        if let Some(ref ver) = engine_version {
+            manifest.engine_version = Some(ver.clone());
         }
         manifest.commit_plugins = commit_plugins;
         write_manifest(project_dir, &manifest)?;
     } else {
-        create_manifest(project_dir, engine_version, commit_plugins)?;
+        create_manifest(project_dir, engine_version.as_deref(), commit_plugins)?;
     }
 
     let uepm_plugins = project_dir.join("UEPMPlugins");
@@ -321,7 +319,7 @@ pub async fn run_init_with_commit(project_dir: &Path, commit_plugins: bool, verb
         crate::output::print_info("Run 'uepm install @scope/plugin' to add your first plugin");
     }
 
-    Ok(())
+    Ok(engine_version)
 }
 
 fn append_ignore(path: std::path::PathBuf, entry: &str) -> Result<(), UepmError> {

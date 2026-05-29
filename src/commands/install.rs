@@ -27,9 +27,11 @@ pub async fn run_install(ctx: &UEPMContext, packages: &[String]) -> Result<(), U
     }
 
     let mut lock = read_lockfile(&ctx.project_dir)?.unwrap_or_default();
-    // Snapshot names already locked before this invocation to track freshness.
-    let pre_install_names: HashSet<String> = lock.plugins.keys().cloned().collect();
-
+    let pre_install_names: HashSet<String> = if ctx.output_mode == OutputMode::Json {
+        lock.plugins.keys().cloned().collect()
+    } else {
+        HashSet::new()
+    };
     let mut resolved: HashMap<String, String> = HashMap::new();
     let mut rctx = ResolveContext::new(ctx, &mut lock, &mut resolved);
 
