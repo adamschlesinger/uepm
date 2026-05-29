@@ -54,7 +54,7 @@ pub async fn run_install(ctx: &UEPMContext, packages: &[String]) -> Result<(), U
     write_lockfile(&ctx.project_dir, &lock)?;
 
     if ctx.output_mode == OutputMode::Json {
-        let results: Vec<InstallResult> = resolved
+        let mut results: Vec<InstallResult> = resolved
             .keys()
             .map(|name| {
                 let locked = lock.plugins.get(name);
@@ -66,6 +66,7 @@ pub async fn run_install(ctx: &UEPMContext, packages: &[String]) -> Result<(), U
                 }
             })
             .collect();
+        results.sort_by(|a, b| a.name.cmp(&b.name));
         crate::output::emit_json(&results);
     } else {
         crate::output::print_success(&format!("Installed {} plugin(s)", resolved.len()));

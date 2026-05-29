@@ -99,42 +99,27 @@ pub async fn run(
         println!("\n  Tarball size : {} bytes", tarball.len());
     }
 
-    if dry_run {
-        if ctx.output_mode == OutputMode::Json {
-            crate::output::emit_json(&PublishResult {
-                name: meta.name.clone(),
-                version: meta.version.clone(),
-                registry: registry.clone(),
-                dry_run: true,
-            });
-        } else {
-            crate::output::print_info("Dry run — skipping upload");
-        }
-        return Ok(());
+    // ── Step 5: upload (skip for dry run) ────────────────────────────────────
+    if !dry_run {
+        let token = match &ctx.token {
+            Some(t) => t.clone(),
+            None => return Err(UepmError::TokenRequired),
+        };
+        let body = build_publish_body(&meta, &pkg_json_value, &tarball, &shasum, &integrity, &registry, tag, access)?;
+        upload(&registry, &meta.name, &body, &token, tag).await?;
     }
-
-    // ── Step 5: require token ─────────────────────────────────────────────────
-    let token = match &ctx.token {
-        Some(t) => t.clone(),
-        None => return Err(UepmError::TokenRequired),
-    };
-
-    // ── Step 6: PUT to registry ───────────────────────────────────────────────
-    let body = build_publish_body(&meta, &pkg_json_value, &tarball, &shasum, &integrity, &registry, tag, access)?;
-    upload(&registry, &meta.name, &body, &token, tag).await?;
 
     if ctx.output_mode == OutputMode::Json {
         crate::output::emit_json(&PublishResult {
             name: meta.name.clone(),
             version: meta.version.clone(),
             registry: registry.clone(),
-            dry_run: false,
+            dry_run,
         });
+    } else if dry_run {
+        crate::output::print_info("Dry run — skipping upload");
     } else {
-        crate::output::print_success(&format!(
-            "Published {}@{} → {registry}",
-            meta.name, meta.version
-        ));
+        crate::output::print_success(&format!("Published {}@{} → {registry}", meta.name, meta.version));
     }
     Ok(())
 }

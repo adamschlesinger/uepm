@@ -47,7 +47,7 @@ pub async fn run(ctx: &UEPMContext, package: Option<String>) -> Result<(), UepmE
     write_lockfile(&ctx.project_dir, &lock)?;
 
     if ctx.output_mode == OutputMode::Json {
-        let results: Vec<UpdateResult> = resolved
+        let mut results: Vec<UpdateResult> = resolved
             .iter()
             .map(|(name, to)| UpdateResult {
                 name: name.clone(),
@@ -55,6 +55,7 @@ pub async fn run(ctx: &UEPMContext, package: Option<String>) -> Result<(), UepmE
                 to: to.clone(),
             })
             .collect();
+        results.sort_by(|a, b| a.name.cmp(&b.name));
         crate::output::emit_json(&results);
     } else {
         crate::output::print_success(&format!("Updated {} plugin(s)", resolved.len()));
