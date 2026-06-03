@@ -1,9 +1,17 @@
-use crate::context::UEPMContext;
+use crate::context::{OutputMode, UEPMContext};
 use crate::errors::UepmError;
 use crate::lockfile::{read_lockfile, write_lockfile};
 use crate::manifest::{add_plugin, read_manifest};
 use crate::resolver::{resolve_and_install, ResolveContext};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+
+#[derive(serde::Serialize)]
+struct InstallResult {
+    name: String,
+    version: String,
+    tarball: String,
+    fresh: bool,
+}
 
 /// Entry point for `uepm install`. Delegates to [`run_install`] using the provided context.
 pub async fn run(ctx: &UEPMContext, packages: Vec<String>) -> Result<(), UepmError> {
@@ -19,6 +27,11 @@ pub async fn run_install(ctx: &UEPMContext, packages: &[String]) -> Result<(), U
     }
 
     let mut lock = read_lockfile(&ctx.project_dir)?.unwrap_or_default();
+    let pre_install_names: HashSet<String> = if ctx.output_mode == OutputMode::Json {
+        lock.plugins.keys().cloned().collect()
+    } else {
+        HashSet::new()
+    };
     let mut resolved: HashMap<String, String> = HashMap::new();
     let mut rctx = ResolveContext::new(ctx, &mut lock, &mut resolved);
 
@@ -41,7 +54,26 @@ pub async fn run_install(ctx: &UEPMContext, packages: &[String]) -> Result<(), U
     }
 
     write_lockfile(&ctx.project_dir, &lock)?;
-    crate::output::print_success(&format!("Installed {} plugin(s)", resolved.len()));
+
+    if ctx.output_mode == OutputMode::Json {
+        let mut results: Vec<InstallResult> = resolved
+            .keys()
+            .map(|name| {
+                let locked = lock.plugins.get(name);
+                InstallResult {
+                    name: name.clone(),
+                    version: locked.map(|p| p.resolved.clone()).unwrap_or_default(),
+                    tarball: locked.map(|p| p.tarball.clone()).unwrap_or_default(),
+                    fresh: !pre_install_names.contains(name),
+                }
+            })
+            .collect();
+        results.sort_by(|a, b| a.name.cmp(&b.name));
+        crate::output::emit_json(&results);
+    } else {
+        crate::output::print_success(&format!("Installed {} plugin(s)", resolved.len()));
+    }
+
     Ok(())
 }
 

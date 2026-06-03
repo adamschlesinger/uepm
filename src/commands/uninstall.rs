@@ -1,8 +1,13 @@
-use crate::context::UEPMContext;
+use crate::context::{OutputMode, UEPMContext};
 use crate::errors::UepmError;
 use crate::lockfile::{read_lockfile, write_lockfile};
 use crate::manifest::remove_plugin;
 use crate::resolver::plugin_dir_name;
+
+#[derive(serde::Serialize)]
+struct UninstallResult {
+    removed: String,
+}
 
 /// Entry point for `uepm uninstall`. Delegates to [`run_uninstall`] using the provided context.
 pub async fn run(ctx: &UEPMContext, package: String) -> Result<(), UepmError> {
@@ -20,17 +25,22 @@ pub async fn run_uninstall(ctx: &UEPMContext, package: &str) -> Result<(), UepmE
         } else {
             std::fs::remove_dir_all(&plugin_dir)?;
         }
-        crate::output::print_success(&format!("Removed {dir_name}"));
-    } else {
+        if ctx.output_mode != OutputMode::Json {
+            crate::output::print_success(&format!("Removed {dir_name}"));
+        }
+    } else if ctx.output_mode != OutputMode::Json {
         crate::output::print_warn(&format!("{dir_name} was not found in UEPMPlugins/"));
     }
 
     remove_plugin(&ctx.project_dir, package)?;
 
-    // Remove from lockfile if present
     if let Some(mut lock) = read_lockfile(&ctx.project_dir)? {
         lock.plugins.remove(package);
         write_lockfile(&ctx.project_dir, &lock)?;
+    }
+
+    if ctx.output_mode == OutputMode::Json {
+        crate::output::emit_json(&UninstallResult { removed: package.to_string() });
     }
 
     Ok(())

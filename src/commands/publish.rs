@@ -1,6 +1,14 @@
-use crate::context::UEPMContext;
+use crate::context::{OutputMode, UEPMContext};
 use crate::errors::UepmError;
 use crate::manifest::{read_package_metadata, PackageMetadata};
+
+#[derive(serde::Serialize)]
+struct PublishResult {
+    name: String,
+    version: String,
+    registry: String,
+    dry_run: bool,
+}
 use crate::publisher;
 use base64::Engine as _;
 use dialoguer::{theme::ColorfulTheme, Confirm, Input};
@@ -27,13 +35,15 @@ pub async fn run(
         .trim_end_matches('/')
         .to_string();
 
-    crate::output::print_info(&format!("Publishing {}", meta.name));
-    println!("  Version      : {}", meta.version);
-    println!("  Engine range : {}", meta.engine_range);
-    println!("  Main         : {}", meta.main);
-    println!("  Registry     : {registry}");
-    println!("  Tag          : {tag}");
-    println!("  Access       : {access}");
+    if ctx.output_mode != OutputMode::Json {
+        crate::output::print_info(&format!("Publishing {}", meta.name));
+        println!("  Version      : {}", meta.version);
+        println!("  Engine range : {}", meta.engine_range);
+        println!("  Main         : {}", meta.main);
+        println!("  Registry     : {registry}");
+        println!("  Tag          : {tag}");
+        println!("  Access       : {access}");
+    }
 
     if !dry_run && !yes {
         if !dialoguer::console::Term::stdout().is_term() {
@@ -79,33 +89,38 @@ pub async fn run(
         base64::engine::general_purpose::STANDARD.encode(Sha512::digest(&tarball))
     );
 
-    let file_list = publisher::list_files(&ctx.project_dir)?;
-    println!("\n  Files ({}):", file_list.len() + 1); // +1 for package.json
-    println!("    package/package.json  (generated)");
-    for f in &file_list {
-        println!("    package/{}", f.display());
+    if ctx.output_mode != OutputMode::Json {
+        let file_list = publisher::list_files(&ctx.project_dir)?;
+        println!("\n  Files ({}):", file_list.len() + 1); // +1 for package.json
+        println!("    package/package.json  (generated)");
+        for f in &file_list {
+            println!("    package/{}", f.display());
+        }
+        println!("\n  Tarball size : {} bytes", tarball.len());
     }
-    println!("\n  Tarball size : {} bytes", tarball.len());
 
-    if dry_run {
+    // ── Step 5: upload (skip for dry run) ────────────────────────────────────
+    if !dry_run {
+        let token = match &ctx.token {
+            Some(t) => t.clone(),
+            None => return Err(UepmError::TokenRequired),
+        };
+        let body = build_publish_body(&meta, &pkg_json_value, &tarball, &shasum, &integrity, &registry, tag, access)?;
+        upload(&registry, &meta.name, &body, &token, tag).await?;
+    }
+
+    if ctx.output_mode == OutputMode::Json {
+        crate::output::emit_json(&PublishResult {
+            name: meta.name.clone(),
+            version: meta.version.clone(),
+            registry: registry.clone(),
+            dry_run,
+        });
+    } else if dry_run {
         crate::output::print_info("Dry run — skipping upload");
-        return Ok(());
+    } else {
+        crate::output::print_success(&format!("Published {}@{} → {registry}", meta.name, meta.version));
     }
-
-    // ── Step 5: require token ─────────────────────────────────────────────────
-    let token = match &ctx.token {
-        Some(t) => t.clone(),
-        None => return Err(UepmError::TokenRequired),
-    };
-
-    // ── Step 6: PUT to registry ───────────────────────────────────────────────
-    let body = build_publish_body(&meta, &pkg_json_value, &tarball, &shasum, &integrity, &registry, tag, access)?;
-    upload(&registry, &meta.name, &body, &token, tag).await?;
-
-    crate::output::print_success(&format!(
-        "Published {}@{} → {registry}",
-        meta.name, meta.version
-    ));
     Ok(())
 }
 
@@ -228,7 +243,7 @@ async fn upload(
     token: &str,
     _tag: &str,
 ) -> Result<(), UepmError> {
-    let url = format!("{}/{}", registry.trim_end_matches('/'), urlencoding::encode(name));
+    let url = format!("{}/{}", registry, urlencoding::encode(name));
 
     let client = reqwest::Client::new();
     let res = client

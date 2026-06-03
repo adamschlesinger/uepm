@@ -1,10 +1,13 @@
 use clap::{Parser, Subcommand};
 use tracing_subscriber::EnvFilter;
-use uepm::context::UEPMContext;
+use uepm::context::{OutputMode, UEPMContext};
 
 #[derive(Parser)]
 #[command(name = "uepm", version, about = "Unreal Engine Plugin Manager")]
 struct Cli {
+    /// Emit structured JSON on stdout instead of colored human-readable output
+    #[arg(long, global = true)]
+    json: bool,
     #[command(subcommand)]
     command: Commands,
 }
@@ -58,13 +61,30 @@ async fn main() {
 
     let cli = Cli::parse();
 
-    let ctx = match UEPMContext::new() {
+    // Enforce --yes when --json is used with interactive commands.
+    if cli.json {
+        let needs_yes = matches!(
+            &cli.command,
+            Commands::Init { yes: false } | Commands::Publish { yes: false, .. }
+        );
+        if needs_yes {
+            uepm::output::emit_json_error("pass --yes when using --json");
+            std::process::exit(1);
+        }
+    }
+
+    let mut ctx = match UEPMContext::new() {
         Ok(c) => c,
         Err(e) => {
-            uepm::output::print_error(&format!("{e}"));
+            if cli.json {
+                uepm::output::emit_json_error(&e.to_string());
+            } else {
+                uepm::output::print_error(&format!("{e}"));
+            }
             std::process::exit(1);
         }
     };
+    ctx.output_mode = if cli.json { OutputMode::Json } else { OutputMode::Human };
 
     let result = match cli.command {
         Commands::Init { yes } => uepm::commands::init::run(&ctx, yes).await,
@@ -78,7 +98,11 @@ async fn main() {
     };
 
     if let Err(e) = result {
-        uepm::output::print_error(&format!("{e}"));
+        if ctx.output_mode == OutputMode::Json {
+            uepm::output::emit_json_error(&e.to_string());
+        } else {
+            uepm::output::print_error(&format!("{e}"));
+        }
         std::process::exit(1);
     }
 }
