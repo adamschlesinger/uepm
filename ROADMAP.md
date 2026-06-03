@@ -12,7 +12,7 @@
 
 ### Developer Experience
 - [ ] `git:` install source — install directly from a Git repository (`git:https://github.com/org/repo#ref`); pins to a commit SHA in `uepm.lock`; supports private repos via `UEPM_TOKEN` or SSH keys
-- [ ] `--json` output flag on all commands — structured JSON output for scripting, Editor integration (Phase 4), and CI tooling (Phase 5)
+- [x] `--json` output flag on all commands — structured JSON output for scripting, Editor integration (Phase 4), and CI tooling (Phase 5)
 - [ ] `uepm completions <shell>` — emit shell completion scripts for bash, zsh, fish, and PowerShell (via `clap_complete`)
 - [ ] `uepm outdated` — compare lockfile versions against latest versions satisfying declared ranges; exits non-zero if anything is behind
 - [ ] `uepm info <pkg>` — fetch and display registry metadata: description, author, license, all published versions with engine ranges
